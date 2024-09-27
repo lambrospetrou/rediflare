@@ -57,6 +57,12 @@ export class RediflareUrlEntry extends DurableObject {
 
 }
 
+const CONTROL_ROUTE_HANDLERS = new Map([
+	["GET /v1/redirects.List", routeListUrlRedirects],
+	["POST /v1/redirects.Upsert", routeUpsertUrlRedirect],
+	["POST /v1/redirects.Delete", routeDeleteUrlRedirect],
+]);
+
 export default {
 	/**
 	 * This is the standard fetch handler for a Cloudflare Worker
@@ -66,19 +72,57 @@ export default {
 	 * @param ctx - The execution context of the Worker
 	 * @returns The response to be sent back to the client
 	 */
+
 	async fetch(request, env, ctx): Promise<Response> {
-		// We will create a `DurableObjectId` using the pathname from the Worker request
-		// This id refers to a unique instance of our 'MyDurableObject' class above
-		let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(new URL(request.url).pathname);
+		const url = new URL(request.url);
+		// Poor man's auth :)
+		// const hClientId = request.headers.get(CLIENT_ID_HEADER);
+		// const qClientId = url.searchParams.get(CLIENT_ID_HEADER);
+		// if (!CLIENT_IDS_ALLOWED.has(hClientId) && !CLIENT_IDS_ALLOWED.has(qClientId)) {
+		// 	return new Response("⚆ _ ⚆", { status: 403 });
+		// }
 
-		// This stub creates a communication channel with the Durable Object instance
-		// The Durable Object constructor will be invoked upon the first call for a given id
-		let stub = env.REDIFLARE_TENANT.get(id);
+		const routeId = `${request.method} ${url.pathname}`;
+		const routeHandler = CONTROL_ROUTE_HANDLERS.get(routeId);
+		if (!routeHandler) {
+			return routeRedirectRequest(request, env);
+		}
 
-		// We call the `sayHello()` RPC method on the stub to invoke the method on the remote
-		// Durable Object instance
-		let greeting = await stub.sayHello("world");
+		console.log(`control plane handling ${request.url}`)
 
-		return new Response(greeting);
+		return routeHandler(request, env).catch(e => {
+			const isUserError = e.message.startsWith("user_error:");
+			if (!isUserError) {
+				console.error(`failed to handle request: ${e.message} stacktrace: ${e.stack ?? "<unknown>"}`);
+			}
+			return new Response("failed to handle the request: " + e.message, {
+				status: isUserError ? 400 : 500,
+				statusText: e.message,
+			})
+		});
 	},
 } satisfies ExportedHandler<Env>;
+
+///// HANDLERS
+
+async function routeRedirectRequest(request: Request, env: Env) {
+	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(new URL(request.url).pathname);
+
+	let stub = env.REDIFLARE_TENANT.get(id);
+
+	let greeting = await stub.sayHello("world");
+
+	return new Response(greeting);
+}
+
+async function routeListUrlRedirects(request: Request, env: Env) {
+	return new Response();
+}
+
+async function routeUpsertUrlRedirect(request: Request, env: Env) {
+	return new Response();
+}
+
+async function routeDeleteUrlRedirect(request: Request, env: Env) {
+	return new Response();
+}
