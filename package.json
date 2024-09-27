@@ -2,9 +2,10 @@
   "name": "rediflare",
   "version": "0.0.1",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:prod": "wrangler deploy --env prod",
+    "dev": "wrangler dev --env staging",
+    "start": "wrangler dev --env staging",
     "cf-typegen": "wrangler types"
   },
   "devDependencies": {
