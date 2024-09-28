@@ -7,7 +7,7 @@ import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { uiAdmin } from './ui';
-import { ApiListRedirectRulesResponse, ApiRedirectRule, ApiRedirectRuleStatsAggregated } from './types';
+import { ApiListRedirectRulesResponse } from './types';
 
 interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
@@ -157,7 +157,7 @@ export class RediflareTenant extends DurableObject {
 		ctx.blockConcurrencyWhile(async () => {
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
 			this.tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one().tenant_id) : '';
-			console.log("DO TENANT found:", this.tenantId);
+			console.log('DO TENANT found:', this.tenantId);
 		});
 	}
 
