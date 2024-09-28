@@ -143,7 +143,9 @@ function Dashboard(props: {}) {
 
 		<section>
 			<h2>Redirection Rules</h2>
-			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s"></div>
+			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
+                <p>Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g. <code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.</p>
+            </div>
 		</section>
 
 		<script type="text/javascript">
