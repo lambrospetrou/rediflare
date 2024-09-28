@@ -5,19 +5,10 @@ interface Env {
 	REDIFLARE_REDIRECT_RULE: DurableObjectNamespace<RediflareRedirectRule>;
 }
 
-/**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
- *
- * Learn more at https://developers.cloudflare.com/durable-objects
- */
-
 export class RediflareTenant extends DurableObject {
 	env: Env
 	sql: SqlStorage
+	tenantId: string
 
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
@@ -28,11 +19,28 @@ export class RediflareTenant extends DurableObject {
 		this.env = env;
 		this.sql = ctx.storage.sql;
 
-		this.ctx.blockConcurrencyWhile(async () => {
-			// this.sql.exec(`CREATE TABLE IF NOT EXISTS tenant_info(
-			// 	id TEXT PRIMARY KEY
-			// )`);
-			this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
+		let tenantId = "";
+		ctx.blockConcurrencyWhile(async () => {
+			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
+			tenantId = tableExists ? String(this.sql.exec("SELECT tenant_id FROM tenant_info LIMIT 1").one()) : "";
+		});
+		this.tenantId = tenantId;
+	}
+
+	async _initTables(tenantId: string) {
+		if (this.tenantId) {
+			if (this.tenantId !== tenantId) {
+				throw new Error("wrong tenant ID on the wrong RediflareTenant");
+			}
+			return this.tenantId;
+		}
+		this.sql.exec(`CREATE TABLE IF NOT EXISTS tenant_info(
+				tenant_id TEXT PRIMARY KEY,
+				dataJson TEXT
+			)`);
+		this.sql.exec("INSERT INTO tenant_info VALUES (?, ?) ON CONFLICT DO NOTHING;", tenantId, "{}");
+
+		this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
 				rule_url TEXT PRIMARY KEY,
 				tenant_id TEXT,
 				response_status INTEGER,
@@ -40,13 +48,16 @@ export class RediflareTenant extends DurableObject {
 				response_headers TEXT
 			)`);
 
-			// Aggregated statistics for all the rules on the tenant.
-			// Alternatively query Analytics Engine directly from the Workers.
-			// this.sql.exec(`CREATE TABLE IF NOT EXISTS url_entries_stats (
-			// 	id TEXT PRIMARY KEY,
-			// 	total_visits INTEGER
-			// )`);
-		});
+		// Aggregated statistics for all the rules on the tenant.
+		// Alternatively query Analytics Engine directly from the Workers.
+		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits_stats_agg (
+				rule_url TEXT,
+				ts_hour_ms INTEGER,
+				total_visits INTEGER,
+
+				PRIMARY KEY (rule_url, ts_hour_ms)
+			)`);
+		this.tenantId = tenantId;
 	}
 
 	async debug() {
@@ -54,12 +65,14 @@ export class RediflareTenant extends DurableObject {
 		const d = {
 			rules: this.sql.exec("SELECT * FROM rules;").toArray(),
 		};
-		console.log({debug: JSON.stringify(d)});
+		console.log({ debug: JSON.stringify(d) });
 		return d;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
 		console.log("BOOM :: TENANT :: UPSERT", tenantId, ruleUrl, responseStatus);
+
+		await this._initTables(tenantId);
 
 		// ruleUrl is either `*/path/here` or a full URL `https://example.com/path/here`.
 		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
@@ -76,12 +89,48 @@ export class RediflareTenant extends DurableObject {
 			JSON.stringify(responseHeaders),
 		);
 
-		return res;
+		return { data: res.data };
+	}
+
+	async list() {
+		console.log("BOOM :: TENANT :: LIST");
+		if (!this.tenantId) {
+			return { data: {} };
+		}
+
+		const data = {
+			rules: this.sql.exec("SELECT * FROM rules;").toArray(),
+			stats: this.sql.exec("SELECT * FROM url_visits_stats_agg").toArray(),
+		};
+		console.log({ debug: JSON.stringify(data) });
+		return { data };
+	}
+
+	async delete(tenantId: string, ruleUrl: string) {
+		console.log("BOOM :: TENANT :: DELETE", tenantId, ruleUrl);
+
+		await this._initTables(tenantId);
+
+		// ruleUrl is either `*/path/here` or a full URL `https://example.com/path/here`.
+		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
+		let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(ruleDOName);
+		let ruleStub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
+
+		await ruleStub.deleteAll();
+
+		this.sql.exec(
+			`DELETE FROM rules WHERE rule_url = ? AND tenant_id = ?;`,
+			ruleUrl,
+			tenantId
+		);
+
+		return this.list();
 	}
 }
 
 export class RediflareRedirectRule extends DurableObject {
 	env: Env
+	storage: DurableObjectStorage
 	sql: SqlStorage
 	rules: Map<string, {
 		tenantId: string,
@@ -91,6 +140,8 @@ export class RediflareRedirectRule extends DurableObject {
 		responseHeaders: string[2][],
 	}> = new Map();
 
+	_sqlInitialized: boolean = false;
+
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
 	 * @param env - The interface to reference bindings declared in wrangler.toml
@@ -98,13 +149,18 @@ export class RediflareRedirectRule extends DurableObject {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.env = env;
+		this.storage = ctx.storage;
 		this.sql = ctx.storage.sql;
 
-		this.ctx.blockConcurrencyWhile(async () => {
-			// this.sql.exec(`CREATE TABLE IF NOT EXISTS tenant_info(
-			// 	id TEXT PRIMARY KEY
-			// )`);
-			this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
+		console.log("constructor DO redirect rule");
+	}
+
+	async _initTables() {
+		if (this._sqlInitialized) {
+			return;
+		}
+
+		this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
 				rule_url TEXT PRIMARY KEY,
 				tenant_id TEXT,
 				response_status INTEGER,
@@ -112,31 +168,33 @@ export class RediflareRedirectRule extends DurableObject {
 				response_headers TEXT
 			)`);
 
-			// We could asynchronously aggregate this into Analytics Engine, to generate fancy analytics.
-			this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits (
+		// We could asynchronously aggregate this into Analytics Engine, to generate fancy analytics.
+		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits (
+				slug_url TEXT,
 				ts_ms INTEGER,
 				id TEXT,
 				request_details TEXT,
 
-				PRIMARY KEY (ts_ms, id)
+				PRIMARY KEY (slug_url, ts_ms, id)
 			)`);
 
-			this.rules = new Map(this.sql.exec(`SELECT * FROM rules;`).toArray().map(row => {
-				return [String(row.rule_url), {
-					tenantId: String(row.tenant_id),
-					ruleUrl: String(row.rule_url),
-					responseStatus: Number(row.response_status),
-					responseLocation: String(row.response_location),
-					responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
-				}];
-			}));
-		});
+		this.rules = new Map(this.sql.exec(`SELECT * FROM rules;`).toArray().map(row => {
+			return [String(row.rule_url), {
+				tenantId: String(row.tenant_id),
+				ruleUrl: String(row.rule_url),
+				responseStatus: Number(row.response_status),
+				responseLocation: String(row.response_location),
+				responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
+			}];
+		}));
 
-		console.log("constructor DO redirect rule", JSON.stringify({rules: [...this.rules.entries()]}));
+		this._sqlInitialized = true;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
 		console.log("BOOM :: REDIRECT_RULE :: UPSERT", tenantId, ruleUrl, responseStatus);
+
+		await this._initTables();
 
 		this.sql.exec(
 			`INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?);`,
@@ -154,7 +212,7 @@ export class RediflareRedirectRule extends DurableObject {
 			responseHeaders,
 		});
 
-		console.log("upsert DO redirect rule", JSON.stringify({rules: [...this.rules.entries()]}));
+		console.log("upsert DO redirect rule", JSON.stringify({ rules: [...this.rules.entries()] }));
 
 		return {
 			data: {
@@ -163,13 +221,21 @@ export class RediflareRedirectRule extends DurableObject {
 		};
 	}
 
+	async deleteAll() {
+		this.rules.clear();
+		this._sqlInitialized = false;
+
+		this.storage.deleteAlarm();
+		await this.storage.deleteAll();
+	}
+
 	async redirect(eyeballRequest: Request) {
 		let ruleUrl = ruleUrlFromEyeballRequest(eyeballRequest);
 
 		console.log("BOOM :: REDIRECT_RULE :: REDIRECT", ruleUrl);
 
 		let rule = this.rules.get(ruleUrl);
-		console.log("found rule", !!rule, ruleUrl, JSON.stringify({rule, rules: [...this.rules.entries()]}))
+		console.log("found rule", !!rule, ruleUrl, JSON.stringify({ rule, rules: [...this.rules.entries()] }))
 		if (!rule) {
 			return new Response("Not found 404", {
 				status: 404,
@@ -177,11 +243,13 @@ export class RediflareRedirectRule extends DurableObject {
 			});
 		}
 
+		await this._initTables();
+
 		const requestInfo = {
 			userAgent: eyeballRequest.headers.get("User-Agent"),
 
 		};
-		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?)`, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
+		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?, ?)`, ruleUrl, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
 
 		const h = new Headers();
 		h.set("X-Powered-By", "rediflare");
@@ -196,7 +264,7 @@ export class RediflareRedirectRule extends DurableObject {
 }
 
 const CONTROL_ROUTE_HANDLERS = new Map([
-	["GET /-_-/debug", routeDebug],
+	// ["GET /-_-/debug", routeDebug],
 	["GET /v1/redirects.List", routeListUrlRedirects],
 	["POST /v1/redirects.Upsert", routeUpsertUrlRedirect],
 	["POST /v1/redirects.Delete", routeDeleteUrlRedirect],
@@ -259,7 +327,13 @@ async function routeRedirectRequest(request: Request, env: Env) {
 }
 
 async function routeListUrlRedirects(request: Request, env: Env) {
-	return new Response();
+	const tenantId = stubIdForTenantFromRequest(request);
+	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
+	let tenantStub = env.REDIFLARE_TENANT.get(id);
+
+	const resp = await tenantStub.list();
+
+	return Response.json({ data: resp.data });
 }
 
 async function routeUpsertUrlRedirect(request: Request, env: Env) {
@@ -282,7 +356,18 @@ async function routeUpsertUrlRedirect(request: Request, env: Env) {
 }
 
 async function routeDeleteUrlRedirect(request: Request, env: Env) {
-	return new Response();
+	interface Params {
+		ruleUrl: string,
+	};
+	const params = await request.json() as Params;
+
+	const tenantId = stubIdForTenantFromRequest(request);
+	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
+	let tenantStub = env.REDIFLARE_TENANT.get(id);
+
+	const resp = await tenantStub.delete(tenantId, params.ruleUrl);
+
+	return Response.json({ data: resp.data });
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -292,16 +377,11 @@ function ruleUrlFromEyeballRequest(request: Request) {
 	return `${url.origin}${url.pathname}`;
 }
 
-function wildcardOriginRuleUrlFromEyeballRequest(request: Request) {
-	const url = new URL(request.url);
-	return `*${url.pathname}`;
-}
-
 function stubIdForTenantFromRequest(request: Request) {
 	// FIXME implement some kind of tenant ID derivation from the request.
 	// Either the hostname, or from the Rediflare API KEY if present.
 
-	return "rediflare-default-tenant";
+	return "rediflare-public-tenant";
 }
 
 function stubIdForRuleFromTenantRule(tenantId: string, ruleUrl: string) {
@@ -321,8 +401,8 @@ async function hash(s: string) {
 	const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	const hashHex = hashArray
-	  .map((bytes) => bytes.toString(16).padStart(2, '0'))
-	  .join('');
+		.map((bytes) => bytes.toString(16).padStart(2, '0'))
+		.join('');
 	return hashHex;
 }
 

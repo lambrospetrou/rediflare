@@ -9,12 +9,9 @@ POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```
 HTTP 200
 
-GET http://127.0.0.1:8787/-_-/debug
-HTTP 200
-
 GET http://127.0.0.1:8787/test-rule
-Location: https://skybear.net
 HTTP 301
+Location: https://skybear.net
 
 POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```json
@@ -28,8 +25,8 @@ POST http://127.0.0.1:8787/v1/redirects.Upsert
 HTTP 200
 
 GET http://127.0.0.1:8787/test-rule
-Location: https://about.skybear.net
 HTTP 307
+Location: https://about.skybear.net
 
 POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```json
@@ -43,6 +40,35 @@ POST http://127.0.0.1:8787/v1/redirects.Upsert
 HTTP 200
 
 GET http://127.0.0.1:8787/test-rule-full
+HTTP 301
 Location: https://lambros.dev/path
 boomer: value1
-HTTP 301
+
+GET http://127.0.0.1:8787/v1/redirects.List
+HTTP 200
+[Asserts]
+jsonpath "$.data.rules" count == 2
+jsonpath "$.data.stats" count == 0
+
+POST http://127.0.0.1:8787/v1/redirects.Delete
+```json
+{
+    "ruleUrl": "http://127.0.0.1:8787/test-rule-full"
+}
+```
+HTTP 200
+[Asserts]
+jsonpath "$.data.rules" count == 1
+
+POST http://127.0.0.1:8787/v1/redirects.Delete
+```json
+{
+    "ruleUrl": "http://127.0.0.1:8787/test-rule"
+}
+```
+HTTP 200
+[Asserts]
+jsonpath "$.data.rules" count == 0
+
+GET http://127.0.0.1:8787/test-rule-full
+HTTP 404
