@@ -5,7 +5,7 @@ export interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
 	REDIFLARE_REDIRECT_RULE: DurableObjectNamespace<RediflareRedirectRule>;
 
-    ASSETS: Fetcher,
+	ASSETS: Fetcher;
 
 	VAR_API_AUTH_ENABLED: boolean;
 
@@ -82,7 +82,7 @@ export class RediflareTenant extends DurableObject {
 		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
 		let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(ruleDOName);
 		let ruleStub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
-		const res = await ruleStub.upsert(tenantId, ruleUrl, responseStatus, responseLocation, responseHeaders);
+		await ruleStub.upsert(tenantId, ruleUrl, responseStatus, responseLocation, responseHeaders);
 
 		this.sql.exec(
 			`INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?);`,
@@ -93,7 +93,7 @@ export class RediflareTenant extends DurableObject {
 			JSON.stringify(responseHeaders)
 		);
 
-		return { data: res.data };
+		return this.list();
 	}
 
 	async list(): Promise<ApiListRedirectRulesResponse> {
@@ -344,16 +344,14 @@ export async function routeRedirectRequest(request: Request, env: CfEnv) {
 	return stub.redirect(request);
 }
 
-export async function routeListUrlRedirects(request: Request, env: CfEnv, tenantId: string) {
+export async function routeListUrlRedirects(request: Request, env: CfEnv, tenantId: string): Promise<ApiListRedirectRulesResponse> {
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = (await tenantStub.list()) as ApiListRedirectRulesResponse;
-
-	return Response.json({ data: resp.data });
+	return tenantStub.list();
 }
 
-export async function routeUpsertUrlRedirect(request: Request, env: CfEnv, tenantId: string) {
+export async function routeUpsertUrlRedirect(request: Request, env: CfEnv, tenantId: string): Promise<ApiListRedirectRulesResponse> {
 	interface Params {
 		ruleUrl: string;
 		responseStatus: number;
@@ -366,18 +364,10 @@ export async function routeUpsertUrlRedirect(request: Request, env: CfEnv, tenan
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = await tenantStub.upsert(
-		tenantId,
-		params.ruleUrl,
-		params.responseStatus,
-		params.responseLocation,
-		params.responseHeaders || []
-	);
-
-	return Response.json(resp);
+	return tenantStub.upsert(tenantId, params.ruleUrl, params.responseStatus, params.responseLocation, params.responseHeaders || []);
 }
 
-export async function routeDeleteUrlRedirect(request: Request, env: CfEnv, tenantId: string) {
+export async function routeDeleteUrlRedirect(request: Request, env: CfEnv, tenantId: string): Promise<ApiListRedirectRulesResponse> {
 	interface Params {
 		ruleUrl: string;
 	}
@@ -386,7 +376,5 @@ export async function routeDeleteUrlRedirect(request: Request, env: CfEnv, tenan
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = (await tenantStub.delete(tenantId, params.ruleUrl)) as ApiListRedirectRulesResponse;
-
-	return Response.json({ data: resp.data });
+	return tenantStub.delete(tenantId, params.ruleUrl);
 }

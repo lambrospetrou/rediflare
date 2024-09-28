@@ -3,8 +3,15 @@ import { html, raw } from 'hono/html';
 import { ApiListRedirectRulesResponse, RequestVars } from './types';
 import { HTTPException } from 'hono/http-exception';
 import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects } from './durable-objects';
+import { apiKeyAuth } from './shared';
 
-export const uiAdmin = new Hono<{ Bindings: CfEnv, Variables: RequestVars }>();
+export const uiAdmin = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
+
+uiAdmin.use('/-_-/ui/partials.*', async (c, next) => {
+	const tenantId = apiKeyAuth(c.env, c.req.raw);
+	c.set('tenantId', tenantId);
+	return next();
+});
 
 uiAdmin.get('/-_-/ui/static/*', async (c) => {
 	const url = new URL(c.req.raw.url);
@@ -26,7 +33,7 @@ uiAdmin.get('/-_-/ui', async (c) => {
 });
 
 uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
-	const data = await apiListRules(c.req.raw, c.env, c.var.tenantId);
+	const { data } = await routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
 	console.log(data);
 	return c.html(
 		RulesAndStats({
@@ -36,7 +43,21 @@ uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 });
 
 uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
-	const data = await apiDeleteRule(c.req.raw, c.env, c.var.tenantId);
+	const form = await c.req.raw.formData();
+	const ruleUrl = decodeURIComponent((form.get('ruleUrl') as string) ?? '');
+	if (!ruleUrl) {
+		throw new HTTPException(400, {
+			res: new Response(`<p>Invalid request for deletion!</p>`, { status: 400 }),
+		});
+	}
+	const { data } = await routeDeleteUrlRedirect(
+		new Request(c.req.raw.url, {
+			body: JSON.stringify({ ruleUrl }),
+			method: 'POST',
+		}),
+		c.env,
+		c.var.tenantId
+	);
 	console.log(data);
 	return c.html(
 		RulesAndStats({
@@ -135,45 +156,4 @@ function Layout(props: { title: string; description: string; image: string; chil
 			</body>
 		</html>
 	`;
-}
-
-async function apiListRules(request: Request, env: CfEnv, tenantId: string) {
-    const {data} = await routeListUrlRedirects(request, env, tenantId)
-		.then((resp) => {
-			if (!resp.ok) {
-				throw new HTTPException(400, { res: resp });
-			}
-			return resp.json<ApiListRedirectRulesResponse>();
-		})
-		.catch((e) => {
-			console.error('failed to list rules:', e);
-			throw new HTTPException(200, {
-				res: new Response(`<p>Input your Rediflare-Api-Key above to load your data.</p>`, { status: 200 }),
-			});
-		});
-	return data;
-}
-
-async function apiDeleteRule(request: Request, env: CfEnv, tenantId: string ) {
-	const form = await request.formData();
-	const ruleUrl = decodeURIComponent((form.get('ruleUrl') as string) ?? '');
-	if (!ruleUrl) {
-		throw new HTTPException(400, {
-			res: new Response(`<p>Invalid request for deletion!</p>`, { status: 400 }),
-		});
-	}
-	const { data } = await routeDeleteUrlRedirect(request, env, tenantId)
-		.then((resp) => {
-			if (!resp.ok) {
-				throw new HTTPException(400, { res: resp });
-			}
-			return resp.json<ApiListRedirectRulesResponse>();
-		})
-		.catch((e) => {
-			console.error('failed to delete rule:', e);
-			throw new HTTPException(400, {
-				res: new Response(`<p>Input your Rediflare-Api-Key above</p>`, { status: 400 }),
-			});
-		});
-	return data;
 }
