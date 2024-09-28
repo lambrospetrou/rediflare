@@ -78,11 +78,7 @@ export class RediflareTenant extends DurableObject {
 
 		await this._initTables(tenantId);
 
-		// ruleUrl is either `*/path/here` or a full URL `https://example.com/path/here`.
-		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
-		let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(ruleDOName);
-		let ruleStub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
-		await ruleStub.upsert(tenantId, ruleUrl, responseStatus, responseLocation, responseHeaders);
+		await this.makeRedirectRuleStub(tenantId, ruleUrl).upsert(tenantId, ruleUrl, responseStatus, responseLocation, responseHeaders);
 
 		this.sql.exec(
 			`INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?);`,
@@ -92,6 +88,18 @@ export class RediflareTenant extends DurableObject {
 			responseLocation,
 			JSON.stringify(responseHeaders)
 		);
+
+		return this.list();
+	}
+
+	async delete(tenantId: string, ruleUrl: string): Promise<ApiListRedirectRulesResponse> {
+		console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
+
+		await this._initTables(tenantId);
+
+		await this.makeRedirectRuleStub(tenantId, ruleUrl).deleteAll();
+
+		this.sql.exec(`DELETE FROM rules WHERE rule_url = ? AND tenant_id = ?;`, ruleUrl, tenantId);
 
 		return this.list();
 	}
@@ -131,20 +139,11 @@ export class RediflareTenant extends DurableObject {
 		return { data };
 	}
 
-	async delete(tenantId: string, ruleUrl: string): Promise<ApiListRedirectRulesResponse> {
-		console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
-
-		await this._initTables(tenantId);
-
+	makeRedirectRuleStub(tenantId: string, ruleUrl: string) {
 		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
 		let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(ruleDOName);
 		let ruleStub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
-
-		await ruleStub.deleteAll();
-
-		this.sql.exec(`DELETE FROM rules WHERE rule_url = ? AND tenant_id = ?;`, ruleUrl, tenantId);
-
-		return this.list();
+		return ruleStub;
 	}
 }
 
