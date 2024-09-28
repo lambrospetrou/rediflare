@@ -265,9 +265,9 @@ export class RediflareRedirectRule extends DurableObject {
 
 const CONTROL_ROUTE_HANDLERS = new Map([
 	// ["GET /-_-/debug", routeDebug],
-	["GET /v1/redirects.List", routeListUrlRedirects],
-	["POST /v1/redirects.Upsert", routeUpsertUrlRedirect],
-	["POST /v1/redirects.Delete", routeDeleteUrlRedirect],
+	["GET /-_-/v1/redirects.List", routeListUrlRedirects],
+	["POST /-_-/v1/redirects.Upsert", routeUpsertUrlRedirect],
+	["POST /-_-/v1/redirects.Delete", routeDeleteUrlRedirect],
 ]);
 
 export default {
