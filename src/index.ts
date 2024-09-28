@@ -169,47 +169,6 @@ export class RediflareRedirectRule extends DurableObject {
 		console.log("BOOM :: REDIRECT_RULE :: REDIRECT", ruleUrl);
 
 		let rule = this.rules.get(ruleUrl);
-		if (!rule) {
-			// Rule doesn't exist. Try querying the wildcard rule if that's not us.
-			ruleUrl = wildcardOriginRuleUrlFromEyeballRequest(eyeballRequest);
-			 // FIXME The tenant ID should be found from a mapping between eyeball request and some lookup table for registered domains!
-			const tenantId = stubIdForTenantFromRequest(eyeballRequest);
-			let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(stubIdForRuleFromTenantRule(tenantId, ruleUrl));
-			let stub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
-			return stub.redirectWildcard(eyeballRequest);
-		}
-
-		console.log("found rule", !!rule, ruleUrl, JSON.stringify({rule, rules: [...this.rules.entries()]}))
-		if (!rule) {
-			return new Response("Not found 404", {
-				status: 404,
-				statusText: "Not found",
-			});
-		}
-
-		const requestInfo = {
-			userAgent: eyeballRequest.headers.get("User-Agent"),
-
-		};
-		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?)`, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
-
-		const h = new Headers();
-		h.set("X-Powered-By", "rediflare");
-		rule.responseHeaders.forEach(rh => h.set(rh[0], rh[1]));
-		h.set("Location", rule.responseLocation);
-		return new Response("redirecting", {
-			status: rule.responseStatus,
-			statusText: "rediflare redirecting",
-			headers: h,
-		});
-	}
-
-	async redirectWildcard(eyeballRequest: Request) {
-		let ruleUrl = wildcardOriginRuleUrlFromEyeballRequest(eyeballRequest);
-
-		console.log("BOOM :: REDIRECT_RULE :: REDIRECT WILDCARD", ruleUrl);
-
-		let rule = this.rules.get(ruleUrl);
 		console.log("found rule", !!rule, ruleUrl, JSON.stringify({rule, rules: [...this.rules.entries()]}))
 		if (!rule) {
 			return new Response("Not found 404", {
@@ -325,6 +284,8 @@ async function routeUpsertUrlRedirect(request: Request, env: Env) {
 async function routeDeleteUrlRedirect(request: Request, env: Env) {
 	return new Response();
 }
+
+//////////////////////////////////////////////////////////////////////////////
 
 function ruleUrlFromEyeballRequest(request: Request) {
 	const url = new URL(request.url);

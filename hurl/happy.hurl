@@ -1,7 +1,7 @@
 POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```json
 {
-    "ruleUrl": "*/test-rule",
+    "ruleUrl": "http://127.0.0.1:8787/test-rule",
     "responseStatus": 301,
     "responseLocation": "https://skybear.net",
     "responseHeaders": []
@@ -19,8 +19,8 @@ HTTP 301
 POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```json
 {
-    "ruleUrl": "*/test-rule",
-    "responseStatus": 301,
+    "ruleUrl": "http://127.0.0.1:8787/test-rule",
+    "responseStatus": 307,
     "responseLocation": "https://about.skybear.net",
     "responseHeaders": []
 }
@@ -29,7 +29,7 @@ HTTP 200
 
 GET http://127.0.0.1:8787/test-rule
 Location: https://about.skybear.net
-HTTP 301
+HTTP 307
 
 POST http://127.0.0.1:8787/v1/redirects.Upsert
 ```json
