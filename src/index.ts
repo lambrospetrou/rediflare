@@ -6,6 +6,7 @@ import { requestId } from 'hono/request-id';
 import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { uiAdmin } from './ui';
 
 interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
@@ -107,6 +108,8 @@ app.use('/-_-/v1/*', async (c, next) => {
 
 	return next();
 });
+
+app.route("/", uiAdmin);
 
 app.get('/-_-/debug', async (c) => {
 	return routeDebug(c.req.raw, c.env, c.var.tenantId);
