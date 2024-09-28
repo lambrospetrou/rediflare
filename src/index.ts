@@ -1,12 +1,62 @@
 import { DurableObject } from "cloudflare:workers";
 
-interface Env {
+import { Hono } from 'hono/tiny'
+import { HTTPException } from 'hono/http-exception'
+
+interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
 	REDIFLARE_REDIRECT_RULE: DurableObjectNamespace<RediflareRedirectRule>;
 }
 
+const app = new Hono<{ Bindings: CfEnv }>();
+
+app.onError((e, c) => {
+	if (e instanceof HTTPException) {
+		// Get the custom response
+		return e.getResponse()
+	}
+	const userErrorPrefix = "user_error:";
+	const isUserError = e.message.startsWith(userErrorPrefix);
+	let msg = e.message;
+	if (!isUserError) {
+		console.error(`failed to handle request: ${e.message} stacktrace: ${e.stack ?? "<unknown>"}`);
+	} else {
+		msg = msg.substring(userErrorPrefix.length);
+	}
+	return new Response("failed to handle the request: " + msg, {
+		status: isUserError ? 400 : 500,
+		statusText: msg,
+	});
+});
+
+app.get("/-_-/debug", async (c) => {
+	return routeDebug(c.req.raw, c.env);
+});
+
+app.get("/-_-/v1/redirects.List", async (c) => {
+	return routeListUrlRedirects(c.req.raw, c.env);
+});
+
+app.post("/-_-/v1/redirects.Upsert", async (c) => {
+	return routeUpsertUrlRedirect(c.req.raw, c.env);
+});
+
+app.post("/-_-/v1/redirects.Delete", async (c) => {
+	return routeDeleteUrlRedirect(c.req.raw, c.env);
+});
+
+app.get("/*", async (c) => {
+	return routeRedirectRequest(c.req.raw, c.env);
+});
+
+export default app;
+
+/////////////////////////////////////////////////////////////////
+// Durable Objects
+///////////////////
+
 export class RediflareTenant extends DurableObject {
-	env: Env
+	env: CfEnv
 	sql: SqlStorage
 	tenantId: string
 
@@ -14,7 +64,7 @@ export class RediflareTenant extends DurableObject {
 	 * @param ctx - The interface for interacting with Durable Object state
 	 * @param env - The interface to reference bindings declared in wrangler.toml
 	 */
-	constructor(ctx: DurableObjectState, env: Env) {
+	constructor(ctx: DurableObjectState, env: CfEnv) {
 		super(ctx, env);
 		this.env = env;
 		this.sql = ctx.storage.sql;
@@ -129,7 +179,7 @@ export class RediflareTenant extends DurableObject {
 }
 
 export class RediflareRedirectRule extends DurableObject {
-	env: Env
+	env: CfEnv
 	storage: DurableObjectStorage
 	sql: SqlStorage
 	rules: Map<string, {
@@ -146,7 +196,7 @@ export class RediflareRedirectRule extends DurableObject {
 	 * @param ctx - The interface for interacting with Durable Object state
 	 * @param env - The interface to reference bindings declared in wrangler.toml
 	 */
-	constructor(ctx: DurableObjectState, env: Env) {
+	constructor(ctx: DurableObjectState, env: CfEnv) {
 		super(ctx, env);
 		this.env = env;
 		this.storage = ctx.storage;
@@ -263,70 +313,25 @@ export class RediflareRedirectRule extends DurableObject {
 	}
 }
 
-const CONTROL_ROUTE_HANDLERS = new Map([
-	// ["GET /-_-/debug", routeDebug],
-	["GET /-_-/v1/redirects.List", routeListUrlRedirects],
-	["POST /-_-/v1/redirects.Upsert", routeUpsertUrlRedirect],
-	["POST /-_-/v1/redirects.Delete", routeDeleteUrlRedirect],
-]);
+/////////////////////////////////////////////////////////////////
+// API Handlers
+////////////////
 
-export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param request - The request submitted to the Worker from the client
-	 * @param env - The interface to reference bindings declared in wrangler.toml
-	 * @param ctx - The execution context of the Worker
-	 * @returns The response to be sent back to the client
-	 */
-
-	async fetch(request, env, ctx): Promise<Response> {
-		const url = new URL(request.url);
-		// Poor man's auth :)
-		// const hClientId = request.headers.get(CLIENT_ID_HEADER);
-		// const qClientId = url.searchParams.get(CLIENT_ID_HEADER);
-		// if (!CLIENT_IDS_ALLOWED.has(hClientId) && !CLIENT_IDS_ALLOWED.has(qClientId)) {
-		// 	return new Response("⚆ _ ⚆", { status: 403 });
-		// }
-
-		const routeId = `${request.method} ${url.pathname}`;
-		const routeHandler = CONTROL_ROUTE_HANDLERS.get(routeId);
-		if (!routeHandler) {
-			return routeRedirectRequest(request, env);
-		}
-
-		console.log(`control plane handling ${request.url}`)
-
-		return routeHandler(request, env).catch(e => {
-			const isUserError = e.message.startsWith("user_error:");
-			if (!isUserError) {
-				console.error(`failed to handle request: ${e.message} stacktrace: ${e.stack ?? "<unknown>"}`);
-			}
-			return new Response("failed to handle the request: " + e.message, {
-				status: isUserError ? 400 : 500,
-				statusText: e.message,
-			})
-		});
-	},
-} satisfies ExportedHandler<Env>;
-
-///// HANDLERS
-
-async function routeDebug(request: Request, env: Env) {
+async function routeDebug(request: Request, env: CfEnv) {
 	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 	return Response.json(await tenantStub.debug());
 }
 
-async function routeRedirectRequest(request: Request, env: Env) {
+async function routeRedirectRequest(request: Request, env: CfEnv) {
 	const stubName = stubIdForRuleFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_REDIRECT_RULE.idFromName(stubName);
 	let stub = env.REDIFLARE_REDIRECT_RULE.get(id);
 	return stub.redirect(request);
 }
 
-async function routeListUrlRedirects(request: Request, env: Env) {
+async function routeListUrlRedirects(request: Request, env: CfEnv) {
 	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
@@ -336,7 +341,7 @@ async function routeListUrlRedirects(request: Request, env: Env) {
 	return Response.json({ data: resp.data });
 }
 
-async function routeUpsertUrlRedirect(request: Request, env: Env) {
+async function routeUpsertUrlRedirect(request: Request, env: CfEnv) {
 	interface Params {
 		ruleUrl: string,
 		responseStatus: number,
@@ -355,7 +360,7 @@ async function routeUpsertUrlRedirect(request: Request, env: Env) {
 	return Response.json(resp);
 }
 
-async function routeDeleteUrlRedirect(request: Request, env: Env) {
+async function routeDeleteUrlRedirect(request: Request, env: CfEnv) {
 	interface Params {
 		ruleUrl: string,
 	};
@@ -370,7 +375,9 @@ async function routeDeleteUrlRedirect(request: Request, env: Env) {
 	return Response.json({ data: resp.data });
 }
 
-//////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////
+// Utils
+/////////
 
 function ruleUrlFromEyeballRequest(request: Request) {
 	const url = new URL(request.url);
