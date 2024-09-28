@@ -11,16 +11,24 @@ interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
 	REDIFLARE_REDIRECT_RULE: DurableObjectNamespace<RediflareRedirectRule>;
 
-	VAR_API_AUTH_ENABLED: string;
+	VAR_API_AUTH_ENABLED: boolean;
+
+	// TODO Move auth keys to Workers KV for multitenancy.
+	VAR_API_AUTH_ADMIN_KEYS_CSV: string;
 }
 
-const app = new Hono<{ Bindings: CfEnv }>();
+interface RequestVars {
+	tenantId: string;
+}
+
+const app = new Hono<{ Bindings: CfEnv, Variables: RequestVars }>();
 
 app.onError((e, c) => {
 	if (e instanceof HTTPException) {
 		// Get the custom response
 		return e.getResponse();
 	}
+	console.error('failed to handle the request: ', e);
 	return new Response('failed to handle the request: ' + e.message, {
 		status: 500,
 		statusText: e.name,
@@ -56,6 +64,7 @@ app.use('/-_-/v1/*', async (c, next) => {
 	const authEnabled = c.env.VAR_API_AUTH_ENABLED;
 	if (!authEnabled) {
 		console.log('skipping auth like some monster!');
+		c.set('tenantId', 'rediflare-public-tenant');
 		return next();
 	}
 
@@ -66,24 +75,53 @@ app.use('/-_-/v1/*', async (c, next) => {
 	// 2. Extract tenantID and token from the header.
 	// 3. Validate token for tenant.
 	// 4. proceed or reject.
+	const authKey = c.req.raw.headers.get("Rediflare-Api-Key")?.trim();
+	if (!authKey) {
+		throw new HTTPException(403, {
+			message: "Rediflare-Api-Key header missing",
+		});
+	}
+	// TODO Move this to Workers KV to allow multiple keys for multi-tenancy.
+	if (c.env.VAR_API_AUTH_ADMIN_KEYS_CSV.indexOf(`,${authKey},`) < 0) {
+		throw new HTTPException(403, {
+			message: "Rediflare-Api-Key is invalid",
+		});	
+	}
+
+	// The key is `rf_key_<tenantID>_<token>`.
+
+	const lastSepIdx = authKey.lastIndexOf("_");
+	if (lastSepIdx < 0) {
+		throw new HTTPException(403, {
+			message: "Rediflare-Api-Key is malformed",
+		});
+	}
+	const tenantId = authKey.slice("rf_key_".length, lastSepIdx)?.trim();
+	if (!tenantId) {
+		throw new HTTPException(403, {
+			message: "Rediflare-Api-Key is malformed",
+		});
+	}
+
+	c.set("tenantId", tenantId);
 
 	return next();
 });
 
 app.get('/-_-/debug', async (c) => {
-	return routeDebug(c.req.raw, c.env);
+	return routeDebug(c.req.raw, c.env, c.var.tenantId);
 });
 
 app.get('/-_-/v1/redirects.List', async (c) => {
-	return routeListUrlRedirects(c.req.raw, c.env);
+	return routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
 });
 
 app.post('/-_-/v1/redirects.Upsert', async (c) => {
-	return routeUpsertUrlRedirect(c.req.raw, c.env);
+	return routeUpsertUrlRedirect(c.req.raw, c.env, c.var.tenantId);
 });
 
 app.post('/-_-/v1/redirects.Delete', async (c) => {
-	return routeDeleteUrlRedirect(c.req.raw, c.env);
+	return routeDeleteUrlRedirect(c.req.raw, c.env, c.var.tenantId);
 });
 
 app.get('/*', async (c) => {
@@ -364,13 +402,6 @@ export class RediflareRedirectRule extends DurableObject {
 // API Handlers
 ////////////////
 
-async function routeDebug(request: Request, env: CfEnv) {
-	const tenantId = stubIdForTenantFromRequest(request);
-	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
-	let tenantStub = env.REDIFLARE_TENANT.get(id);
-	return Response.json(await tenantStub.debug());
-}
-
 async function routeRedirectRequest(request: Request, env: CfEnv) {
 	const stubName = stubIdForRuleFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_REDIRECT_RULE.idFromName(stubName);
@@ -378,8 +409,13 @@ async function routeRedirectRequest(request: Request, env: CfEnv) {
 	return stub.redirect(request);
 }
 
-async function routeListUrlRedirects(request: Request, env: CfEnv) {
-	const tenantId = stubIdForTenantFromRequest(request);
+async function routeDebug(request: Request, env: CfEnv, tenantId: string) {
+	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
+	let tenantStub = env.REDIFLARE_TENANT.get(id);
+	return Response.json(await tenantStub.debug());
+}
+
+async function routeListUrlRedirects(request: Request, env: CfEnv, tenantId: string) {
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
@@ -388,7 +424,7 @@ async function routeListUrlRedirects(request: Request, env: CfEnv) {
 	return Response.json({ data: resp.data });
 }
 
-async function routeUpsertUrlRedirect(request: Request, env: CfEnv) {
+async function routeUpsertUrlRedirect(request: Request, env: CfEnv, tenantId: string) {
 	interface Params {
 		ruleUrl: string;
 		responseStatus: number;
@@ -398,7 +434,6 @@ async function routeUpsertUrlRedirect(request: Request, env: CfEnv) {
 
 	const params = (await request.json()) as Params;
 
-	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
@@ -413,13 +448,12 @@ async function routeUpsertUrlRedirect(request: Request, env: CfEnv) {
 	return Response.json(resp);
 }
 
-async function routeDeleteUrlRedirect(request: Request, env: CfEnv) {
+async function routeDeleteUrlRedirect(request: Request, env: CfEnv, tenantId: string) {
 	interface Params {
 		ruleUrl: string;
 	}
 	const params = (await request.json()) as Params;
 
-	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
@@ -435,13 +469,6 @@ async function routeDeleteUrlRedirect(request: Request, env: CfEnv) {
 function ruleUrlFromEyeballRequest(request: Request) {
 	const url = new URL(request.url);
 	return `${url.origin}${url.pathname}`;
-}
-
-function stubIdForTenantFromRequest(request: Request) {
-	// FIXME implement some kind of tenant ID derivation from the request.
-	// Either the hostname, or from the Rediflare API KEY if present.
-
-	return 'rediflare-public-tenant';
 }
 
 function stubIdForRuleFromTenantRule(tenantId: string, ruleUrl: string) {

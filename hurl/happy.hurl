@@ -1,4 +1,5 @@
 POST http://127.0.0.1:8787/-_-/v1/redirects.Upsert
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 ```json
 {
     "ruleUrl": "http://127.0.0.1:8787/test-rule",
@@ -14,6 +15,7 @@ HTTP 301
 Location: https://skybear.net
 
 POST http://127.0.0.1:8787/-_-/v1/redirects.Upsert
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 ```json
 {
     "ruleUrl": "http://127.0.0.1:8787/test-rule",
@@ -29,6 +31,7 @@ HTTP 307
 Location: https://about.skybear.net
 
 POST http://127.0.0.1:8787/-_-/v1/redirects.Upsert
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 ```json
 {
     "ruleUrl": "http://127.0.0.1:8787/test-rule-full",
@@ -45,12 +48,14 @@ Location: https://lambros.dev/path
 boomer: value1
 
 GET http://127.0.0.1:8787/-_-/v1/redirects.List
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 HTTP 200
 [Asserts]
 jsonpath "$.data.rules" count == 2
 jsonpath "$.data.stats" count == 0
 
 POST http://127.0.0.1:8787/-_-/v1/redirects.Delete
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 ```json
 {
     "ruleUrl": "http://127.0.0.1:8787/test-rule-full"
@@ -61,6 +66,7 @@ HTTP 200
 jsonpath "$.data.rules" count == 1
 
 POST http://127.0.0.1:8787/-_-/v1/redirects.Delete
+Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 ```json
 {
     "ruleUrl": "http://127.0.0.1:8787/test-rule"

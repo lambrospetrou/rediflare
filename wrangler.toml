@@ -10,7 +10,8 @@ compatibility_date = "2024-09-25"
 enabled = true
 
 [env.staging.vars]
-VAR_API_AUTH_ENABLED = false
+VAR_API_AUTH_ENABLED = true
+VAR_API_AUTH_ADMIN_KEYS_CSV = ",rf_key_TENANT1111_sometoken,"
 
 # Bind a Durable Object. Durable objects are a scale-to-zero compute primitive based on the actor model.
 # Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
