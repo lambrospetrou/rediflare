@@ -1,13 +1,10 @@
 import { Hono } from 'hono';
 import { html, raw } from 'hono/html';
-import { ApiListRedirectRulesResponse } from './types';
+import { ApiListRedirectRulesResponse, RequestVars } from './types';
 import { HTTPException } from 'hono/http-exception';
+import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects } from './durable-objects';
 
-interface CfEnv {
-	ASSETS: Fetcher;
-}
-
-export const uiAdmin = new Hono<{ Bindings: CfEnv }>();
+export const uiAdmin = new Hono<{ Bindings: CfEnv, Variables: RequestVars }>();
 
 uiAdmin.get('/-_-/ui/static/*', async (c) => {
 	const url = new URL(c.req.raw.url);
@@ -29,7 +26,7 @@ uiAdmin.get('/-_-/ui', async (c) => {
 });
 
 uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
-	const data = await apiListRules(c.req.raw);
+	const data = await apiListRules(c.req.raw, c.env, c.var.tenantId);
 	console.log(data);
 	return c.html(
 		RulesAndStats({
@@ -39,7 +36,7 @@ uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 });
 
 uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
-	const data = await apiDeleteRule(c.req.raw);
+	const data = await apiDeleteRule(c.req.raw, c.env, c.var.tenantId);
 	console.log(data);
 	return c.html(
 		RulesAndStats({
@@ -140,11 +137,8 @@ function Layout(props: { title: string; description: string; image: string; chil
 	`;
 }
 
-async function apiListRules(request: Request) {
-	const url = new URL(request.url);
-	url.pathname = '/-_-/v1/redirects.List';
-	const req = new Request(url, request);
-	const { data } = await fetch(req)
+async function apiListRules(request: Request, env: CfEnv, tenantId: string) {
+    const {data} = await routeListUrlRedirects(request, env, tenantId)
 		.then((resp) => {
 			if (!resp.ok) {
 				throw new HTTPException(400, { res: resp });
@@ -160,9 +154,7 @@ async function apiListRules(request: Request) {
 	return data;
 }
 
-async function apiDeleteRule(request: Request) {
-	const url = new URL(request.url);
-	url.pathname = '/-_-/v1/redirects.Delete';
+async function apiDeleteRule(request: Request, env: CfEnv, tenantId: string ) {
 	const form = await request.formData();
 	const ruleUrl = decodeURIComponent((form.get('ruleUrl') as string) ?? '');
 	if (!ruleUrl) {
@@ -170,12 +162,7 @@ async function apiDeleteRule(request: Request) {
 			res: new Response(`<p>Invalid request for deletion!</p>`, { status: 400 }),
 		});
 	}
-	const req = new Request(url, {
-		method: 'POST',
-		headers: request.headers,
-		body: JSON.stringify({ ruleUrl }),
-	});
-	const { data } = await fetch(req)
+	const { data } = await routeDeleteUrlRedirect(request, env, tenantId)
 		.then((resp) => {
 			if (!resp.ok) {
 				throw new HTTPException(400, { res: resp });

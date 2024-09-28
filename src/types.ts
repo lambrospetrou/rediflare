@@ -1,3 +1,7 @@
+export interface RequestVars {
+	tenantId: string;
+}
+
 export interface ApiRedirectRule {
 	tenantId: string;
 	ruleUrl: string;
