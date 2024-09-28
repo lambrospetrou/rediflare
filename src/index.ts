@@ -7,6 +7,7 @@ import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { uiAdmin } from './ui';
+import { ApiListRedirectRulesResponse, ApiRedirectRule, ApiRedirectRuleStatsAggregated } from './types';
 
 interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
@@ -22,7 +23,7 @@ interface RequestVars {
 	tenantId: string;
 }
 
-const app = new Hono<{ Bindings: CfEnv, Variables: RequestVars }>();
+const app = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
 
 app.onError((e, c) => {
 	if (e instanceof HTTPException) {
@@ -76,40 +77,40 @@ app.use('/-_-/v1/*', async (c, next) => {
 	// 2. Extract tenantID and token from the header.
 	// 3. Validate token for tenant.
 	// 4. proceed or reject.
-	const authKey = c.req.raw.headers.get("Rediflare-Api-Key")?.trim();
+	const authKey = c.req.raw.headers.get('Rediflare-Api-Key')?.trim();
 	if (!authKey) {
 		throw new HTTPException(403, {
-			message: "Rediflare-Api-Key header missing",
+			message: 'Rediflare-Api-Key header missing',
 		});
 	}
 	// TODO Move this to Workers KV to allow multiple keys for multi-tenancy.
 	if (c.env.VAR_API_AUTH_ADMIN_KEYS_CSV.indexOf(`,${authKey},`) < 0) {
 		throw new HTTPException(403, {
-			message: "Rediflare-Api-Key is invalid",
-		});	
+			message: 'Rediflare-Api-Key is invalid',
+		});
 	}
 
 	// The key is `rf_key_<tenantID>_<token>`.
 
-	const lastSepIdx = authKey.lastIndexOf("_");
+	const lastSepIdx = authKey.lastIndexOf('_');
 	if (lastSepIdx < 0) {
 		throw new HTTPException(403, {
-			message: "Rediflare-Api-Key is malformed",
+			message: 'Rediflare-Api-Key is malformed',
 		});
 	}
-	const tenantId = authKey.slice("rf_key_".length, lastSepIdx)?.trim();
+	const tenantId = authKey.slice('rf_key_'.length, lastSepIdx)?.trim();
 	if (!tenantId) {
 		throw new HTTPException(403, {
-			message: "Rediflare-Api-Key is malformed",
+			message: 'Rediflare-Api-Key is malformed',
 		});
 	}
 
-	c.set("tenantId", tenantId);
+	c.set('tenantId', tenantId);
 
 	return next();
 });
 
-app.route("/", uiAdmin);
+app.route('/', uiAdmin);
 
 app.get('/-_-/debug', async (c) => {
 	return routeDebug(c.req.raw, c.env, c.var.tenantId);
@@ -140,7 +141,7 @@ export default app;
 export class RediflareTenant extends DurableObject {
 	env: CfEnv;
 	sql: SqlStorage;
-	tenantId: string;
+	tenantId: string = '';
 
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
@@ -151,12 +152,13 @@ export class RediflareTenant extends DurableObject {
 		this.env = env;
 		this.sql = ctx.storage.sql;
 
-		let tenantId = '';
+		console.log('constructor DO tenant');
+
 		ctx.blockConcurrencyWhile(async () => {
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
-			tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one()) : '';
+			this.tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one().tenant_id) : '';
+			console.log("DO TENANT found:", this.tenantId);
 		});
-		this.tenantId = tenantId;
 	}
 
 	async _initTables(tenantId: string) {
@@ -224,26 +226,46 @@ export class RediflareTenant extends DurableObject {
 		return { data: res.data };
 	}
 
-	async list() {
-		console.log('BOOM :: TENANT :: LIST');
+	async list(): Promise<ApiListRedirectRulesResponse> {
+		console.log('BOOM :: TENANT :: LIST', this.tenantId);
 		if (!this.tenantId) {
-			return { data: {} };
+			return {
+				data: {
+					rules: [],
+					stats: [],
+				},
+			} as ApiListRedirectRulesResponse;
 		}
 
-		const data = {
-			rules: this.sql.exec('SELECT * FROM rules;').toArray(),
-			stats: this.sql.exec('SELECT * FROM url_visits_stats_agg').toArray(),
+		const data: ApiListRedirectRulesResponse['data'] = {
+			rules: this.sql
+				.exec('SELECT * FROM rules;')
+				.toArray()
+				.map((row) => ({
+					tenantId: String(row.tenant_id),
+					ruleUrl: String(row.rule_url),
+					responseStatus: Number(row.response_status),
+					responseLocation: String(row.response_location),
+					responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
+				})),
+			stats: this.sql
+				.exec('SELECT * FROM url_visits_stats_agg')
+				.toArray()
+				.map((row) => ({
+					ruleUrl: String(row.rule_url),
+					tsHourMs: Number(row.ts_hour_ms),
+					totalVisits: Number(row.total_visits),
+				})),
 		};
 		console.log({ debug: JSON.stringify(data) });
 		return { data };
 	}
 
-	async delete(tenantId: string, ruleUrl: string) {
+	async delete(tenantId: string, ruleUrl: string): Promise<ApiListRedirectRulesResponse> {
 		console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
 
 		await this._initTables(tenantId);
 
-		// ruleUrl is either `*/path/here` or a full URL `https://example.com/path/here`.
 		const ruleDOName = stubIdForRuleFromTenantRule(tenantId, ruleUrl);
 		let id: DurableObjectId = this.env.REDIFLARE_REDIRECT_RULE.idFromName(ruleDOName);
 		let ruleStub = this.env.REDIFLARE_REDIRECT_RULE.get(id);
@@ -284,6 +306,12 @@ export class RediflareRedirectRule extends DurableObject {
 		this.sql = ctx.storage.sql;
 
 		console.log('constructor DO redirect rule');
+		ctx.blockConcurrencyWhile(async () => {
+			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'rules';").toArray().length > 0;
+			if (tableExists) {
+				await this._initTables();
+			}
+		});
 	}
 
 	async _initTables() {
@@ -422,7 +450,7 @@ async function routeListUrlRedirects(request: Request, env: CfEnv, tenantId: str
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = await tenantStub.list();
+	const resp = (await tenantStub.list()) as ApiListRedirectRulesResponse;
 
 	return Response.json({ data: resp.data });
 }
@@ -460,7 +488,7 @@ async function routeDeleteUrlRedirect(request: Request, env: CfEnv, tenantId: st
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = await tenantStub.delete(tenantId, params.ruleUrl);
+	const resp = (await tenantStub.delete(tenantId, params.ruleUrl)) as ApiListRedirectRulesResponse;
 
 	return Response.json({ data: resp.data });
 }
