@@ -1,5 +1,5 @@
-import { HTTPException } from "hono/http-exception";
-import { CfEnv } from "./durable-objects";
+import { HTTPException } from 'hono/http-exception';
+import { CfEnv } from './durable-objects';
 
 export function apiKeyAuth(env: CfEnv, request: Request) {
 	const authEnabled = env.VAR_API_AUTH_ENABLED;
@@ -8,19 +8,17 @@ export function apiKeyAuth(env: CfEnv, request: Request) {
 		return 'rediflare-public-tenant';
 	}
 
-	console.log('authing...');
-
-	// TODO
-	// 1. Extra `rediflare-api-key` header
+	// 1. Extra `rediflare-api-key` header.
 	// 2. Extract tenantID and token from the header.
-	// 3. Validate token for tenant.
-	// 4. proceed or reject.
+	// 3. Validate API KEY.
+	// 4. Proceed or reject.
 	const authKey = request.headers.get('Rediflare-Api-Key')?.trim();
 	if (!authKey) {
 		throw new HTTPException(403, {
 			message: 'Rediflare-Api-Key header missing',
 		});
 	}
+
 	// TODO Move this to Workers KV to allow multiple keys for multi-tenancy.
 	if (env.VAR_API_AUTH_ADMIN_KEYS_CSV.indexOf(`,${authKey},`) < 0) {
 		throw new HTTPException(403, {
@@ -29,7 +27,6 @@ export function apiKeyAuth(env: CfEnv, request: Request) {
 	}
 
 	// The key is `rf_key_<tenantID>_<token>`.
-
 	const lastSepIdx = authKey.lastIndexOf('_');
 	if (lastSepIdx < 0) {
 		throw new HTTPException(403, {
@@ -44,4 +41,17 @@ export function apiKeyAuth(env: CfEnv, request: Request) {
 	}
 
 	return tenantId;
+}
+
+export async function hash(s: string) {
+	const utf8 = new TextEncoder().encode(s);
+	const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	const hashHex = hashArray.map((bytes) => bytes.toString(16).padStart(2, '0')).join('');
+	return hashHex;
+}
+
+export async function hashToBigInt(s: string) {
+	const hashHex = hash(s);
+	return BigInt(`0x${(await hashHex).substring(0, 16)}`);
 }

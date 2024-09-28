@@ -31,12 +31,9 @@ export class RediflareTenant extends DurableObject {
 		this.env = env;
 		this.sql = ctx.storage.sql;
 
-		console.log('constructor DO tenant');
-
 		ctx.blockConcurrencyWhile(async () => {
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
 			this.tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one().tenant_id) : '';
-			console.log('DO TENANT found:', this.tenantId);
 		});
 	}
 
@@ -75,8 +72,7 @@ export class RediflareTenant extends DurableObject {
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
-		console.log('BOOM :: TENANT :: UPSERT', tenantId, ruleUrl, responseStatus);
-
+		// console.log('BOOM :: TENANT :: UPSERT', tenantId, ruleUrl, responseStatus);
 		await this._initTables(tenantId);
 
 		await this.makeRedirectRuleStub(tenantId, ruleUrl).upsert(tenantId, ruleUrl, responseStatus, responseLocation, responseHeaders);
@@ -94,8 +90,7 @@ export class RediflareTenant extends DurableObject {
 	}
 
 	async delete(tenantId: string, ruleUrl: string): Promise<ApiListRedirectRulesResponse> {
-		console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
-
+		// console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
 		await this._initTables(tenantId);
 
 		await this.makeRedirectRuleStub(tenantId, ruleUrl).deleteAll();
@@ -106,7 +101,7 @@ export class RediflareTenant extends DurableObject {
 	}
 
 	async list(): Promise<ApiListRedirectRulesResponse> {
-		console.log('BOOM :: TENANT :: LIST', this.tenantId);
+		// console.log('BOOM :: TENANT :: LIST', this.tenantId);
 		if (!this.tenantId) {
 			return {
 				data: {
@@ -138,21 +133,13 @@ export class RediflareTenant extends DurableObject {
 					totalVisits: Number(row.total_visits),
 				})),
 		};
-		console.log({ debug: JSON.stringify(data) });
 		return { data };
 	}
 
 	async recordStats(aggStats: ApiRedirectRuleStatsAggregated[]) {
-		console.log('BOOM RECORD STATS ::', aggStats);
-        aggStats.forEach(s => {
-            this.sql.exec(
-                `INSERT OR REPLACE INTO url_visits_stats_agg VALUES (?, ?, ?, ?);`,
-                s.tenantId,
-                s.ruleUrl,
-                s.tsHourMs,
-                s.totalVisits,
-            );
-        });
+		aggStats.forEach((s) => {
+			this.sql.exec(`INSERT OR REPLACE INTO url_visits_stats_agg VALUES (?, ?, ?, ?);`, s.tenantId, s.ruleUrl, s.tsHourMs, s.totalVisits);
+		});
 	}
 
 	makeRedirectRuleStub(tenantId: string, ruleUrl: string) {
@@ -191,13 +178,12 @@ export class RediflareRedirectRule extends DurableObject {
 		this.storage = ctx.storage;
 		this.sql = ctx.storage.sql;
 
-		console.log('constructor DO redirect rule');
 		ctx.blockConcurrencyWhile(async () => {
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'rules';").toArray().length > 0;
 			if (tableExists) {
 				await this._initTables();
 			}
-            this._statsAlarm = await this.storage.getAlarm();
+			this._statsAlarm = await this.storage.getAlarm();
 		});
 	}
 
@@ -246,7 +232,7 @@ export class RediflareRedirectRule extends DurableObject {
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
-		console.log('BOOM :: REDIRECT_RULE :: UPSERT', tenantId, ruleUrl, responseStatus);
+		// console.log('BOOM :: REDIRECT_RULE :: UPSERT', tenantId, ruleUrl, responseStatus);
 
 		await this._initTables();
 
@@ -266,7 +252,7 @@ export class RediflareRedirectRule extends DurableObject {
 			responseHeaders,
 		});
 
-		console.log('upsert DO redirect rule', JSON.stringify({ rules: [...this.rules.entries()] }));
+		// console.log('upsert DO redirect rule', JSON.stringify({ rules: [...this.rules.entries()] }));
 
 		return {
 			data: {
@@ -286,10 +272,7 @@ export class RediflareRedirectRule extends DurableObject {
 	async redirect(eyeballRequest: Request) {
 		let ruleUrl = ruleUrlFromEyeballRequest(eyeballRequest);
 
-		console.log('BOOM :: REDIRECT_RULE :: REDIRECT', ruleUrl);
-
 		let rule = this.rules.get(ruleUrl);
-		console.log('found rule', !!rule, ruleUrl, JSON.stringify({ rule, rules: [...this.rules.entries()] }));
 		if (!rule) {
 			return new Response('Not found 404', {
 				status: 404,
@@ -304,8 +287,7 @@ export class RediflareRedirectRule extends DurableObject {
 		};
 		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?, ?)`, ruleUrl, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
 
-        // No need for await for the alarm since it will be captured by the output gates.
-        // FIXME Alarms are broken for SQLite DOs as of 2024-09-27, so enable them later.
+		// FIXME Alarms are broken for SQLite DOs as of 2024-09-27, so enable them later.
 		// await this.scheduleStatsSubmission();
 
 		const h = new Headers();
@@ -324,18 +306,14 @@ export class RediflareRedirectRule extends DurableObject {
 			// Already scheduled, backoff.
 			return;
 		}
-        this._statsAlarm = Date.now() + 5_000;
+		this._statsAlarm = Date.now() + 5_000;
 		await this.storage.setAlarm(this._statsAlarm);
-        console.log("ALARM SET", this._statsAlarm)
 	}
 
 	async alarm() {
 		this._statsAlarm = null;
 
-		console.log('BOOM SENDING STATS');
-
 		const tenantId = await this.findTenantId();
-		console.log('tenantID', tenantId);
 
 		const raw = this.sql
 			.exec('SELECT * FROM url_visits')
@@ -349,8 +327,8 @@ export class RediflareRedirectRule extends DurableObject {
 
 		const agg: Map<string, ApiRedirectRuleStatsAggregated> = new Map();
 		for (const r of raw) {
-            const hourStart = Math.floor(r.tsMs / (3600 * 1000)) * (3600 * 1000);
-            const key = `${r.ruleUrl}::${hourStart}`;
+			const hourStart = Math.floor(r.tsMs / (3600 * 1000)) * (3600 * 1000);
+			const key = `${r.ruleUrl}::${hourStart}`;
 
 			if (!agg.has(key)) {
 				agg.set(key, {
@@ -365,20 +343,18 @@ export class RediflareRedirectRule extends DurableObject {
 		}
 
 		const aggStats = [...agg.values()];
-		console.log('AGG STATS', aggStats);
 
 		let id: DurableObjectId = this.env.REDIFLARE_TENANT.idFromName(tenantId);
 		let tenantStub = this.env.REDIFLARE_TENANT.get(id);
 		await tenantStub.recordStats(aggStats);
 
-        // TODO Publish stats to Workers Analytics Engine with more fine-grained detail (e.g. user agent).
+		// TODO Publish stats to Workers Analytics Engine with more fine-grained detail (e.g. user agent).
 
-        // Delete all data from more than 2 hours ago to keep the storage low in this DO.
-        this.sql.exec(`
+		// Delete all data from more than 2 hours ago to keep the storage low in this DO.
+		this.sql.exec(`
             DELETE FROM url_visits
             WHERE ts_ms < (strftime('%s', 'now') * 1000) - (2 * 3600 * 1000);    
         `);
-
 	}
 
 	async findTenantId() {
@@ -406,19 +382,6 @@ function stubIdForRuleFromTenantRule(tenantId: string, ruleUrl: string) {
 
 function stubIdForRuleFromRequest(request: Request) {
 	return ruleUrlFromEyeballRequest(request);
-}
-
-async function hash(s: string) {
-	const utf8 = new TextEncoder().encode(s);
-	const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	const hashHex = hashArray.map((bytes) => bytes.toString(16).padStart(2, '0')).join('');
-	return hashHex;
-}
-
-async function hashToBigInt(s: string) {
-	const hashHex = hash(s);
-	return BigInt(`0x${(await hashHex).substring(0, 16)}`);
 }
 
 /////////////////////////////////////////////////////////////////

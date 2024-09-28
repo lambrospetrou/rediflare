@@ -34,7 +34,6 @@ uiAdmin.get('/-_-/ui', async (c) => {
 
 uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 	const { data } = await routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
-	console.log(data);
 	return c.html(
 		RulesAndStats({
 			data,
@@ -58,7 +57,6 @@ uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
 		c.env,
 		c.var.tenantId
 	);
-	console.log(data);
 	return c.html(
 		RulesAndStats({
 			data,
@@ -73,15 +71,15 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 		return html`<p>You have no redirect rules yet (•_•)</p>`;
 	}
 
-    data.stats.sort((s1, s2) => {
-        if (s1.tsHourMs !== s2.tsHourMs) {
-            return s2.tsHourMs - s1.tsHourMs;
-        }
-        return s2.ruleUrl.localeCompare(s1.ruleUrl);
-    });
+	data.stats.sort((s1, s2) => {
+		if (s1.tsHourMs !== s2.tsHourMs) {
+			return s2.tsHourMs - s1.tsHourMs;
+		}
+		return s2.ruleUrl.localeCompare(s1.ruleUrl);
+	});
 
-    const totalAggs = new Map<string, number>();
-    data.stats.forEach(s => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
+	const totalAggs = new Map<string, number>();
+	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
 
 	return html`
 		<div id="rules-list">
@@ -106,18 +104,16 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 			}
 		</div>
 		<div id="stats-list">
-            <h3>Statistics</h3>
-            ${
-                [...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)
-            }
-            <hr>
+			<h3>Statistics</h3>
+			${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
+			<hr />
 			${
 				// TODO Improve :)
 				data.stats.map(
 					(stat) => html`
 						<div>
-                            <p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>	
-                            <pre>${raw(JSON.stringify(stat, null, 2))}</pre>
+							<p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>
+							<pre>${raw(JSON.stringify(stat, null, 2))}</pre>
 						</div>
 					`
 				)
@@ -132,7 +128,7 @@ function Dashboard(props: {}) {
 
 		<section>
 			<h2>Rediflare-Api-Key</h2>
-            <!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
+			<!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
 			<input
 				type="text"
 				id="rf-api-key"
@@ -150,23 +146,23 @@ function Dashboard(props: {}) {
 			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s"></div>
 		</section>
 
-        <script type="text/javascript">
-        (function() {
-            // Auto load the api key if it's in the hash section of the URL.
-            function parseApiKeyFromHash() {
-                let hashFragment = window.location.hash?.trim();
-                if (hashFragment) {
-                    hashFragment = hashFragment.startsWith("#") ? hashFragment.substring(1) : hashFragment;
-                    const params = new URLSearchParams(hashFragment);
-                    const apiKey = params.get("rfApiKey")?.trim();
-                    if (apiKey) {
-                        document.querySelector("#rf-api-key").value = apiKey;
-                    }
-                }
-            }
-            parseApiKeyFromHash();
-        })();
-        </script>
+		<script type="text/javascript">
+			(function () {
+				// Auto load the api key if it's in the hash section of the URL.
+				function parseApiKeyFromHash() {
+					let hashFragment = window.location.hash?.trim();
+					if (hashFragment) {
+						hashFragment = hashFragment.startsWith('#') ? hashFragment.substring(1) : hashFragment;
+						const params = new URLSearchParams(hashFragment);
+						const apiKey = params.get('rfApiKey')?.trim();
+						if (apiKey) {
+							document.querySelector('#rf-api-key').value = apiKey;
+						}
+					}
+				}
+				parseApiKeyFromHash();
+			})();
+		</script>
 	</main>`;
 }
 
