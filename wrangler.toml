@@ -1,15 +1,29 @@
 #:schema node_modules/wrangler/config-schema.json
-name = "rediflare"
+name = "rediflare-env_unspecified"
 main = "src/index.ts"
 compatibility_date = "2024-09-25"
 
 assets = { directory = "./public/", binding = "ASSETS" }
+
+# Retain dashboard changes during deployments for variable changes!
+keep_vars = true
 
 # Workers Logs
 # Docs: https://developers.cloudflare.com/workers/observability/logs/workers-logs/
 # Configuration: https://developers.cloudflare.com/workers/observability/logs/workers-logs/#enable-workers-logs
 [observability]
 enabled = true
+
+
+#######################################################
+## STAGING
+#######################################################
+
+[env.staging]
+name = "rediflare-staging"
+routes = [
+    { pattern = "go-staging.lambros.dev", custom_domain = true },
+]
 
 [env.staging.vars]
 VAR_API_AUTH_ENABLED = true
@@ -19,6 +33,29 @@ VAR_API_AUTH_ADMIN_KEYS_CSV = ",rf_key_TENANT1111_sometoken,"
 # Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects
 [env.staging.durable_objects]
+bindings = [
+    {name = "REDIFLARE_TENANT", class_name = "RediflareTenant"},
+    {name = "REDIFLARE_REDIRECT_RULE", class_name = "RediflareRedirectRule"},
+]
+
+#######################################################
+## PROD
+#######################################################
+
+[env.prod]
+name = "rediflare-prod"
+routes = [
+    { pattern = "go.lambros.dev", custom_domain = true },
+]
+
+[env.prod.vars]
+VAR_API_AUTH_ENABLED = true
+VAR_API_AUTH_ADMIN_KEYS_CSV = ",rf_key_TENANT1111_sometoken,"
+
+# Bind a Durable Object. Durable objects are a scale-to-zero compute primitive based on the actor model.
+# Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects
+[env.prod.durable_objects]
 bindings = [
     {name = "REDIFLARE_TENANT", class_name = "RediflareTenant"},
     {name = "REDIFLARE_REDIRECT_RULE", class_name = "RediflareRedirectRule"},
