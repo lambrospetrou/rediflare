@@ -15,11 +15,11 @@ enabled = true
 [env.staging.durable_objects]
 bindings = [
     {name = "REDIFLARE_TENANT", class_name = "RediflareTenant"},
-    {name = "REDIFLARE_URL_ENTRY", class_name = "RediflareUrlEntry"},
+    {name = "REDIFLARE_REDIRECT_RULE", class_name = "RediflareRedirectRule"},
 ]
 
 # Durable Object migrations.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#migrations
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["RediflareTenant", "RediflareUrlEntry"]
+new_sqlite_classes = ["RediflareTenant", "RediflareRedirectRule"]
