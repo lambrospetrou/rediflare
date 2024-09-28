@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { ApiListRedirectRulesResponse } from './types';
+import { ApiListRedirectRulesResponse, ApiRedirectRuleStatsAggregated } from './types';
 
 export interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
@@ -64,11 +64,12 @@ export class RediflareTenant extends DurableObject {
 		// Aggregated statistics for all the rules on the tenant.
 		// Alternatively query Analytics Engine directly from the Workers.
 		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits_stats_agg (
+                tenant_id TEXT,
 				rule_url TEXT,
 				ts_hour_ms INTEGER,
 				total_visits INTEGER,
 
-				PRIMARY KEY (rule_url, ts_hour_ms)
+				PRIMARY KEY (tenant_id, rule_url, ts_hour_ms)
 			)`);
 		this.tenantId = tenantId;
 	}
@@ -126,10 +127,12 @@ export class RediflareTenant extends DurableObject {
 					responseLocation: String(row.response_location),
 					responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
 				})),
+
 			stats: this.sql
 				.exec('SELECT * FROM url_visits_stats_agg')
 				.toArray()
 				.map((row) => ({
+					tenantId: String(row.tenant_id),
 					ruleUrl: String(row.rule_url),
 					tsHourMs: Number(row.ts_hour_ms),
 					totalVisits: Number(row.total_visits),
@@ -137,6 +140,19 @@ export class RediflareTenant extends DurableObject {
 		};
 		console.log({ debug: JSON.stringify(data) });
 		return { data };
+	}
+
+	async recordStats(aggStats: ApiRedirectRuleStatsAggregated[]) {
+		console.log('BOOM RECORD STATS ::', aggStats);
+        aggStats.forEach(s => {
+            this.sql.exec(
+                `INSERT OR REPLACE INTO url_visits_stats_agg VALUES (?, ?, ?, ?);`,
+                s.tenantId,
+                s.ruleUrl,
+                s.tsHourMs,
+                s.totalVisits,
+            );
+        });
 	}
 
 	makeRedirectRuleStub(tenantId: string, ruleUrl: string) {
@@ -163,6 +179,7 @@ export class RediflareRedirectRule extends DurableObject {
 	> = new Map();
 
 	_sqlInitialized: boolean = false;
+	_statsAlarm: number | null = null;
 
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
@@ -180,6 +197,7 @@ export class RediflareRedirectRule extends DurableObject {
 			if (tableExists) {
 				await this._initTables();
 			}
+            this._statsAlarm = await this.storage.getAlarm();
 		});
 	}
 
@@ -196,14 +214,14 @@ export class RediflareRedirectRule extends DurableObject {
 				response_headers TEXT
 			)`);
 
-		// We could asynchronously aggregate this into Analytics Engine, to generate fancy analytics.
+		// We asynchronously aggregate this to generate fancy analytics.
 		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits (
-				slug_url TEXT,
+				rule_url TEXT,
 				ts_ms INTEGER,
 				id TEXT,
 				request_details TEXT,
 
-				PRIMARY KEY (slug_url, ts_ms, id)
+				PRIMARY KEY (rule_url, ts_ms, id)
 			)`);
 
 		this.rules = new Map(
@@ -286,6 +304,10 @@ export class RediflareRedirectRule extends DurableObject {
 		};
 		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?, ?)`, ruleUrl, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
 
+        // No need for await for the alarm since it will be captured by the output gates.
+        // FIXME Alarms are broken for SQLite DOs as of 2024-09-27, so enable them later.
+		await this.scheduleStatsSubmission();
+
 		const h = new Headers();
 		h.set('X-Powered-By', 'rediflare');
 		rule.responseHeaders.forEach((rh) => h.set(rh[0], rh[1]));
@@ -295,6 +317,73 @@ export class RediflareRedirectRule extends DurableObject {
 			statusText: 'rediflare redirecting',
 			headers: h,
 		});
+	}
+
+	async scheduleStatsSubmission() {
+		if (!!this._statsAlarm) {
+			// Already scheduled, backoff.
+			return;
+		}
+        this._statsAlarm = Date.now() + 5_000;
+		await this.storage.setAlarm(this._statsAlarm);
+        console.log("ALARM SET", this._statsAlarm)
+	}
+
+	async alarm() {
+		this._statsAlarm = null;
+
+		console.log('BOOM SENDING STATS');
+
+		const tenantId = await this.findTenantId();
+		console.log('tenantID', tenantId);
+
+		const raw = this.sql
+			.exec('SELECT * FROM url_visits')
+			.toArray()
+			.map((row) => ({
+				ruleUrl: String(row.rule_url),
+				tsMs: Number(row.ts_ms),
+				id: String(row.id),
+				requestDetailsJson: String(row.request_details),
+			}));
+
+		const agg: Map<string, ApiRedirectRuleStatsAggregated> = new Map();
+		for (const r of raw) {
+            const hourStart = Math.floor(r.tsMs / (3600 * 1000)) * (3600 * 1000);
+            const key = `${r.ruleUrl}::${hourStart}`;
+
+			if (!agg.has(key)) {
+				agg.set(key, {
+					tenantId,
+					ruleUrl: r.ruleUrl,
+					tsHourMs: hourStart,
+					totalVisits: 1,
+				});
+			} else {
+				agg.get(key)!.totalVisits += 1;
+			}
+		}
+
+		const aggStats = [...agg.values()];
+		console.log('AGG STATS', aggStats);
+
+		let id: DurableObjectId = this.env.REDIFLARE_TENANT.idFromName(tenantId);
+		let tenantStub = this.env.REDIFLARE_TENANT.get(id);
+		await tenantStub.recordStats(aggStats);
+
+        // TODO Publish stats to Workers Analytics Engine with more fine-grained detail (e.g. user agent).
+
+        // Delete all data from more than 2 hours ago to keep the storage low in this DO.
+        this.sql.exec(`
+            DELETE FROM url_visits
+            WHERE ts_ms < (strftime('%s', 'now') * 1000) - (2 * 3600 * 1000);    
+        `);
+
+	}
+
+	async findTenantId() {
+		await this._initTables();
+		return String(this.sql.exec('SELECT tenant_id FROM rules LIMIT 1;').one().tenant_id);
 	}
 }
 

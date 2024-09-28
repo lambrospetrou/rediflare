@@ -11,6 +11,7 @@ export interface ApiRedirectRule {
 }
 
 export interface ApiRedirectRuleStatsAggregated {
+	tenantId: string,
 	ruleUrl: string;
 	tsHourMs: number;
 	totalVisits: number;
@@ -21,4 +22,11 @@ export interface ApiListRedirectRulesResponse {
 		rules: ApiRedirectRule[];
 		stats: ApiRedirectRuleStatsAggregated[];
 	};
+}
+
+export interface ApiUrlVisitStatsSingle {
+	ruleUrl: string;
+	tsMs: number;
+	id: string;
+	requestDetailsJson: string;
 }

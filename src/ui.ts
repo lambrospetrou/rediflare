@@ -73,6 +73,16 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 		return html`<p>You have no redirect rules yet (•_•)</p>`;
 	}
 
+    data.stats.sort((s1, s2) => {
+        if (s1.tsHourMs !== s2.tsHourMs) {
+            return s2.tsHourMs - s1.tsHourMs;
+        }
+        return s2.ruleUrl.localeCompare(s1.ruleUrl);
+    });
+
+    const totalAggs = new Map<string, number>();
+    data.stats.forEach(s => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
+
 	return html`
 		<div id="rules-list">
 			${
@@ -96,12 +106,18 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 			}
 		</div>
 		<div id="stats-list">
+            <h3>Statistics</h3>
+            ${
+                [...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)
+            }
+            <hr>
 			${
 				// TODO Improve :)
 				data.stats.map(
 					(stat) => html`
 						<div>
-							<pre>${raw(JSON.stringify(stat, null, 2))}</pre>
+                            <p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>	
+                            <pre>${raw(JSON.stringify(stat, null, 2))}</pre>
 						</div>
 					`
 				)
