@@ -9,6 +9,9 @@ compatibility_date = "2024-09-25"
 [observability]
 enabled = true
 
+[env.staging.vars]
+VAR_API_AUTH_ENABLED = false
+
 # Bind a Durable Object. Durable objects are a scale-to-zero compute primitive based on the actor model.
 # Durable Objects can live for as long as needed. Use these when you need a long-running "server", such as in realtime apps.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#durable-objects

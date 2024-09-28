@@ -1,11 +1,17 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers';
 
-import { Hono } from 'hono/tiny'
-import { HTTPException } from 'hono/http-exception'
+import { Hono } from 'hono/tiny';
+import { HTTPException } from 'hono/http-exception';
+import { requestId } from 'hono/request-id';
+import { logger } from 'hono/logger';
+import { bodyLimit } from 'hono/body-limit';
+import { cors } from 'hono/cors';
 
 interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
 	REDIFLARE_REDIRECT_RULE: DurableObjectNamespace<RediflareRedirectRule>;
+
+	VAR_API_AUTH_ENABLED: string;
 }
 
 const app = new Hono<{ Bindings: CfEnv }>();
@@ -13,39 +19,74 @@ const app = new Hono<{ Bindings: CfEnv }>();
 app.onError((e, c) => {
 	if (e instanceof HTTPException) {
 		// Get the custom response
-		return e.getResponse()
+		return e.getResponse();
 	}
-	const userErrorPrefix = "user_error:";
-	const isUserError = e.message.startsWith(userErrorPrefix);
-	let msg = e.message;
-	if (!isUserError) {
-		console.error(`failed to handle request: ${e.message} stacktrace: ${e.stack ?? "<unknown>"}`);
-	} else {
-		msg = msg.substring(userErrorPrefix.length);
-	}
-	return new Response("failed to handle the request: " + msg, {
-		status: isUserError ? 400 : 500,
-		statusText: msg,
+	return new Response('failed to handle the request: ' + e.message, {
+		status: 500,
+		statusText: e.name,
 	});
 });
 
-app.get("/-_-/debug", async (c) => {
+app.use('*', requestId());
+app.use(async function poweredBy(c, next) {
+	await next();
+	c.res.headers.set('X-Powered-By', 'Rediflare');
+});
+app.use(logger());
+app.use(
+	cors({
+		// TODO
+		origin: '*',
+		allowHeaders: ['Upgrade-Insecure-Requests'],
+		allowMethods: ['POST', 'GET', 'OPTIONS'],
+		maxAge: 600,
+		credentials: true,
+	})
+);
+app.use(
+	bodyLimit({
+		maxSize: 10 * 1024, // 10kb
+		onError: (c) => {
+			return c.text('overflow :(', 413);
+		},
+	})
+);
+
+app.use('/-_-/v1/*', async (c, next) => {
+	const authEnabled = c.env.VAR_API_AUTH_ENABLED;
+	if (!authEnabled) {
+		console.log('skipping auth like some monster!');
+		return next();
+	}
+
+	console.log('authing...');
+
+	// TODO
+	// 1. Extra `rediflare-api-key` header
+	// 2. Extract tenantID and token from the header.
+	// 3. Validate token for tenant.
+	// 4. proceed or reject.
+
+	return next();
+});
+
+app.get('/-_-/debug', async (c) => {
 	return routeDebug(c.req.raw, c.env);
 });
 
-app.get("/-_-/v1/redirects.List", async (c) => {
+app.get('/-_-/v1/redirects.List', async (c) => {
 	return routeListUrlRedirects(c.req.raw, c.env);
 });
 
-app.post("/-_-/v1/redirects.Upsert", async (c) => {
+app.post('/-_-/v1/redirects.Upsert', async (c) => {
 	return routeUpsertUrlRedirect(c.req.raw, c.env);
 });
 
-app.post("/-_-/v1/redirects.Delete", async (c) => {
+app.post('/-_-/v1/redirects.Delete', async (c) => {
 	return routeDeleteUrlRedirect(c.req.raw, c.env);
 });
 
-app.get("/*", async (c) => {
+app.get('/*', async (c) => {
 	return routeRedirectRequest(c.req.raw, c.env);
 });
 
@@ -56,9 +97,9 @@ export default app;
 ///////////////////
 
 export class RediflareTenant extends DurableObject {
-	env: CfEnv
-	sql: SqlStorage
-	tenantId: string
+	env: CfEnv;
+	sql: SqlStorage;
+	tenantId: string;
 
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
@@ -69,10 +110,10 @@ export class RediflareTenant extends DurableObject {
 		this.env = env;
 		this.sql = ctx.storage.sql;
 
-		let tenantId = "";
+		let tenantId = '';
 		ctx.blockConcurrencyWhile(async () => {
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
-			tenantId = tableExists ? String(this.sql.exec("SELECT tenant_id FROM tenant_info LIMIT 1").one()) : "";
+			tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one()) : '';
 		});
 		this.tenantId = tenantId;
 	}
@@ -80,7 +121,7 @@ export class RediflareTenant extends DurableObject {
 	async _initTables(tenantId: string) {
 		if (this.tenantId) {
 			if (this.tenantId !== tenantId) {
-				throw new Error("wrong tenant ID on the wrong RediflareTenant");
+				throw new Error('wrong tenant ID on the wrong RediflareTenant');
 			}
 			return this.tenantId;
 		}
@@ -88,7 +129,7 @@ export class RediflareTenant extends DurableObject {
 				tenant_id TEXT PRIMARY KEY,
 				dataJson TEXT
 			)`);
-		this.sql.exec("INSERT INTO tenant_info VALUES (?, ?) ON CONFLICT DO NOTHING;", tenantId, "{}");
+		this.sql.exec('INSERT INTO tenant_info VALUES (?, ?) ON CONFLICT DO NOTHING;', tenantId, '{}');
 
 		this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
 				rule_url TEXT PRIMARY KEY,
@@ -111,16 +152,16 @@ export class RediflareTenant extends DurableObject {
 	}
 
 	async debug() {
-		console.log("BOOM :: TENANT :: DEBUG");
+		console.log('BOOM :: TENANT :: DEBUG');
 		const d = {
-			rules: this.sql.exec("SELECT * FROM rules;").toArray(),
+			rules: this.sql.exec('SELECT * FROM rules;').toArray(),
 		};
 		console.log({ debug: JSON.stringify(d) });
 		return d;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
-		console.log("BOOM :: TENANT :: UPSERT", tenantId, ruleUrl, responseStatus);
+		console.log('BOOM :: TENANT :: UPSERT', tenantId, ruleUrl, responseStatus);
 
 		await this._initTables(tenantId);
 
@@ -136,28 +177,28 @@ export class RediflareTenant extends DurableObject {
 			tenantId,
 			responseStatus,
 			responseLocation,
-			JSON.stringify(responseHeaders),
+			JSON.stringify(responseHeaders)
 		);
 
 		return { data: res.data };
 	}
 
 	async list() {
-		console.log("BOOM :: TENANT :: LIST");
+		console.log('BOOM :: TENANT :: LIST');
 		if (!this.tenantId) {
 			return { data: {} };
 		}
 
 		const data = {
-			rules: this.sql.exec("SELECT * FROM rules;").toArray(),
-			stats: this.sql.exec("SELECT * FROM url_visits_stats_agg").toArray(),
+			rules: this.sql.exec('SELECT * FROM rules;').toArray(),
+			stats: this.sql.exec('SELECT * FROM url_visits_stats_agg').toArray(),
 		};
 		console.log({ debug: JSON.stringify(data) });
 		return { data };
 	}
 
 	async delete(tenantId: string, ruleUrl: string) {
-		console.log("BOOM :: TENANT :: DELETE", tenantId, ruleUrl);
+		console.log('BOOM :: TENANT :: DELETE', tenantId, ruleUrl);
 
 		await this._initTables(tenantId);
 
@@ -168,27 +209,26 @@ export class RediflareTenant extends DurableObject {
 
 		await ruleStub.deleteAll();
 
-		this.sql.exec(
-			`DELETE FROM rules WHERE rule_url = ? AND tenant_id = ?;`,
-			ruleUrl,
-			tenantId
-		);
+		this.sql.exec(`DELETE FROM rules WHERE rule_url = ? AND tenant_id = ?;`, ruleUrl, tenantId);
 
 		return this.list();
 	}
 }
 
 export class RediflareRedirectRule extends DurableObject {
-	env: CfEnv
-	storage: DurableObjectStorage
-	sql: SqlStorage
-	rules: Map<string, {
-		tenantId: string,
-		ruleUrl: string,
-		responseStatus: number,
-		responseLocation: string,
-		responseHeaders: string[2][],
-	}> = new Map();
+	env: CfEnv;
+	storage: DurableObjectStorage;
+	sql: SqlStorage;
+	rules: Map<
+		string,
+		{
+			tenantId: string;
+			ruleUrl: string;
+			responseStatus: number;
+			responseLocation: string;
+			responseHeaders: string[2][];
+		}
+	> = new Map();
 
 	_sqlInitialized: boolean = false;
 
@@ -202,7 +242,7 @@ export class RediflareRedirectRule extends DurableObject {
 		this.storage = ctx.storage;
 		this.sql = ctx.storage.sql;
 
-		console.log("constructor DO redirect rule");
+		console.log('constructor DO redirect rule');
 	}
 
 	async _initTables() {
@@ -228,21 +268,29 @@ export class RediflareRedirectRule extends DurableObject {
 				PRIMARY KEY (slug_url, ts_ms, id)
 			)`);
 
-		this.rules = new Map(this.sql.exec(`SELECT * FROM rules;`).toArray().map(row => {
-			return [String(row.rule_url), {
-				tenantId: String(row.tenant_id),
-				ruleUrl: String(row.rule_url),
-				responseStatus: Number(row.response_status),
-				responseLocation: String(row.response_location),
-				responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
-			}];
-		}));
+		this.rules = new Map(
+			this.sql
+				.exec(`SELECT * FROM rules;`)
+				.toArray()
+				.map((row) => {
+					return [
+						String(row.rule_url),
+						{
+							tenantId: String(row.tenant_id),
+							ruleUrl: String(row.rule_url),
+							responseStatus: Number(row.response_status),
+							responseLocation: String(row.response_location),
+							responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
+						},
+					];
+				})
+		);
 
 		this._sqlInitialized = true;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
-		console.log("BOOM :: REDIRECT_RULE :: UPSERT", tenantId, ruleUrl, responseStatus);
+		console.log('BOOM :: REDIRECT_RULE :: UPSERT', tenantId, ruleUrl, responseStatus);
 
 		await this._initTables();
 
@@ -252,7 +300,7 @@ export class RediflareRedirectRule extends DurableObject {
 			tenantId,
 			responseStatus,
 			responseLocation,
-			JSON.stringify(responseHeaders),
+			JSON.stringify(responseHeaders)
 		);
 		this.rules.set(ruleUrl, {
 			tenantId,
@@ -262,7 +310,7 @@ export class RediflareRedirectRule extends DurableObject {
 			responseHeaders,
 		});
 
-		console.log("upsert DO redirect rule", JSON.stringify({ rules: [...this.rules.entries()] }));
+		console.log('upsert DO redirect rule', JSON.stringify({ rules: [...this.rules.entries()] }));
 
 		return {
 			data: {
@@ -282,32 +330,31 @@ export class RediflareRedirectRule extends DurableObject {
 	async redirect(eyeballRequest: Request) {
 		let ruleUrl = ruleUrlFromEyeballRequest(eyeballRequest);
 
-		console.log("BOOM :: REDIRECT_RULE :: REDIRECT", ruleUrl);
+		console.log('BOOM :: REDIRECT_RULE :: REDIRECT', ruleUrl);
 
 		let rule = this.rules.get(ruleUrl);
-		console.log("found rule", !!rule, ruleUrl, JSON.stringify({ rule, rules: [...this.rules.entries()] }))
+		console.log('found rule', !!rule, ruleUrl, JSON.stringify({ rule, rules: [...this.rules.entries()] }));
 		if (!rule) {
-			return new Response("Not found 404", {
+			return new Response('Not found 404', {
 				status: 404,
-				statusText: "Not found",
+				statusText: 'Not found',
 			});
 		}
 
 		await this._initTables();
 
 		const requestInfo = {
-			userAgent: eyeballRequest.headers.get("User-Agent"),
-
+			userAgent: eyeballRequest.headers.get('User-Agent'),
 		};
 		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?, ?)`, ruleUrl, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
 
 		const h = new Headers();
-		h.set("X-Powered-By", "rediflare");
-		rule.responseHeaders.forEach(rh => h.set(rh[0], rh[1]));
-		h.set("Location", rule.responseLocation);
-		return new Response("redirecting", {
+		h.set('X-Powered-By', 'rediflare');
+		rule.responseHeaders.forEach((rh) => h.set(rh[0], rh[1]));
+		h.set('Location', rule.responseLocation);
+		return new Response('redirecting', {
 			status: rule.responseStatus,
-			statusText: "rediflare redirecting",
+			statusText: 'rediflare redirecting',
 			headers: h,
 		});
 	}
@@ -343,28 +390,34 @@ async function routeListUrlRedirects(request: Request, env: CfEnv) {
 
 async function routeUpsertUrlRedirect(request: Request, env: CfEnv) {
 	interface Params {
-		ruleUrl: string,
-		responseStatus: number,
-		responseLocation: string,
-		responseHeaders?: string[2][],
-	};
+		ruleUrl: string;
+		responseStatus: number;
+		responseLocation: string;
+		responseHeaders?: string[2][];
+	}
 
-	const params = await request.json() as Params;
+	const params = (await request.json()) as Params;
 
 	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
 	let tenantStub = env.REDIFLARE_TENANT.get(id);
 
-	const resp = await tenantStub.upsert(tenantId, params.ruleUrl, params.responseStatus, params.responseLocation, params.responseHeaders || []);
+	const resp = await tenantStub.upsert(
+		tenantId,
+		params.ruleUrl,
+		params.responseStatus,
+		params.responseLocation,
+		params.responseHeaders || []
+	);
 
 	return Response.json(resp);
 }
 
 async function routeDeleteUrlRedirect(request: Request, env: CfEnv) {
 	interface Params {
-		ruleUrl: string,
-	};
-	const params = await request.json() as Params;
+		ruleUrl: string;
+	}
+	const params = (await request.json()) as Params;
 
 	const tenantId = stubIdForTenantFromRequest(request);
 	let id: DurableObjectId = env.REDIFLARE_TENANT.idFromName(tenantId);
@@ -388,11 +441,11 @@ function stubIdForTenantFromRequest(request: Request) {
 	// FIXME implement some kind of tenant ID derivation from the request.
 	// Either the hostname, or from the Rediflare API KEY if present.
 
-	return "rediflare-public-tenant";
+	return 'rediflare-public-tenant';
 }
 
 function stubIdForRuleFromTenantRule(tenantId: string, ruleUrl: string) {
-	if (ruleUrl.startsWith("*/")) {
+	if (ruleUrl.startsWith('*/')) {
 		return `${tenantId}:::${ruleUrl}`;
 	}
 	// It's a full URL with origin and path.
@@ -407,13 +460,11 @@ async function hash(s: string) {
 	const utf8 = new TextEncoder().encode(s);
 	const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	const hashHex = hashArray
-		.map((bytes) => bytes.toString(16).padStart(2, '0'))
-		.join('');
+	const hashHex = hashArray.map((bytes) => bytes.toString(16).padStart(2, '0')).join('');
 	return hashHex;
 }
 
 async function hashToBigInt(s: string) {
 	const hashHex = hash(s);
-	return BigInt(`0x${(await hashHex).substring(0, 16)}`)
+	return BigInt(`0x${(await hashHex).substring(0, 16)}`);
 }
