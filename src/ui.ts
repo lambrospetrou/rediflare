@@ -132,6 +132,7 @@ function Dashboard(props: {}) {
 
 		<section>
 			<h2>Rediflare-Api-Key</h2>
+            <!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
 			<input
 				type="text"
 				id="rf-api-key"
@@ -148,6 +149,24 @@ function Dashboard(props: {}) {
 			<h2>Redirection Rules</h2>
 			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s"></div>
 		</section>
+
+        <script type="text/javascript">
+        (function() {
+            // Auto load the api key if it's in the hash section of the URL.
+            function parseApiKeyFromHash() {
+                let hashFragment = window.location.hash?.trim();
+                if (hashFragment) {
+                    hashFragment = hashFragment.startsWith("#") ? hashFragment.substring(1) : hashFragment;
+                    const params = new URLSearchParams(hashFragment);
+                    const apiKey = params.get("rfApiKey")?.trim();
+                    if (apiKey) {
+                        document.querySelector("#rf-api-key").value = apiKey;
+                    }
+                }
+            }
+            parseApiKeyFromHash();
+        })();
+        </script>
 	</main>`;
 }
 
