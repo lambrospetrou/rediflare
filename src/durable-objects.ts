@@ -306,7 +306,7 @@ export class RediflareRedirectRule extends DurableObject {
 
         // No need for await for the alarm since it will be captured by the output gates.
         // FIXME Alarms are broken for SQLite DOs as of 2024-09-27, so enable them later.
-		await this.scheduleStatsSubmission();
+		// await this.scheduleStatsSubmission();
 
 		const h = new Headers();
 		h.set('X-Powered-By', 'rediflare');
