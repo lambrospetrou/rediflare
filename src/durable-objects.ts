@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ApiListRedirectRulesResponse, ApiRedirectRuleStatsAggregated } from './types';
+import { SchemaMigration, SchemaMigrations } from './sql-migrations';
 
 export interface CfEnv {
 	REDIFLARE_TENANT: DurableObjectNamespace<RediflareTenant>;
@@ -17,10 +18,48 @@ export interface CfEnv {
 // Durable Objects
 ///////////////////
 
+const RediflareTenantMigrations: SchemaMigration[] = [
+	{
+		idMonotonicInc: 1,
+		description: 'initial version',
+		sql: `
+            CREATE TABLE IF NOT EXISTS tenant_info(
+				tenant_id TEXT PRIMARY KEY,
+				dataJson TEXT
+			);
+            CREATE TABLE IF NOT EXISTS rules (
+				rule_url TEXT PRIMARY KEY,
+				tenant_id TEXT,
+				response_status INTEGER,
+				response_location TEXT,
+				response_headers TEXT
+			);
+        `,
+	},
+	{
+		idMonotonicInc: 2,
+		description: 'initial version for stats table',
+		// Aggregated statistics for all the rules on the tenant.
+		// Alternatively query Analytics Engine directly from the Workers.
+		sql: `
+            CREATE TABLE IF NOT EXISTS url_visits_stats_agg (
+                tenant_id TEXT,
+				rule_url TEXT,
+				ts_hour_ms INTEGER,
+				total_visits INTEGER,
+
+				PRIMARY KEY (tenant_id, rule_url, ts_hour_ms)
+			);
+        `,
+	},
+];
+
 export class RediflareTenant extends DurableObject {
 	env: CfEnv;
 	sql: SqlStorage;
 	tenantId: string = '';
+
+	_migrations?: SchemaMigrations;
 
 	/**
 	 * @param ctx - The interface for interacting with Durable Object state
@@ -32,43 +71,31 @@ export class RediflareTenant extends DurableObject {
 		this.sql = ctx.storage.sql;
 
 		ctx.blockConcurrencyWhile(async () => {
+			this._migrations = new SchemaMigrations({
+				doStorage: ctx.storage,
+				migrations: RediflareTenantMigrations,
+			});
+
 			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'tenant_info';").toArray().length > 0;
 			this.tenantId = tableExists ? String(this.sql.exec('SELECT tenant_id FROM tenant_info LIMIT 1').one().tenant_id) : '';
 		});
 	}
 
 	async _initTables(tenantId: string) {
+		const rowsData = await this._migrations!.runAll();
+		if (rowsData.rowsRead || rowsData.rowsWritten) {
+			console.info({ message: `RediflareTenant schema migrations`, rowsRead: rowsData.rowsRead, rowsWritten: rowsData.rowsWritten });
+		}
+
 		if (this.tenantId) {
 			if (this.tenantId !== tenantId) {
 				throw new Error('wrong tenant ID on the wrong RediflareTenant');
 			}
-			return this.tenantId;
+		} else {
+			this.sql.exec('INSERT INTO tenant_info VALUES (?, ?) ON CONFLICT DO NOTHING;', tenantId, '{}');
+			this.tenantId = tenantId;
 		}
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS tenant_info(
-				tenant_id TEXT PRIMARY KEY,
-				dataJson TEXT
-			)`);
-		this.sql.exec('INSERT INTO tenant_info VALUES (?, ?) ON CONFLICT DO NOTHING;', tenantId, '{}');
-
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
-				rule_url TEXT PRIMARY KEY,
-				tenant_id TEXT,
-				response_status INTEGER,
-				response_location TEXT,
-				response_headers TEXT
-			)`);
-
-		// Aggregated statistics for all the rules on the tenant.
-		// Alternatively query Analytics Engine directly from the Workers.
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits_stats_agg (
-                tenant_id TEXT,
-				rule_url TEXT,
-				ts_hour_ms INTEGER,
-				total_visits INTEGER,
-
-				PRIMARY KEY (tenant_id, rule_url, ts_hour_ms)
-			)`);
-		this.tenantId = tenantId;
+		return this.tenantId;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
@@ -149,6 +176,31 @@ export class RediflareTenant extends DurableObject {
 		return ruleStub;
 	}
 }
+
+const RediflareRedirectRuleMigrations: SchemaMigration[] = [
+	{
+		idMonotonicInc: 1,
+		description: 'initial version',
+		sql: `
+            CREATE TABLE IF NOT EXISTS rules (
+                rule_url TEXT PRIMARY KEY,
+                tenant_id TEXT,
+                response_status INTEGER,
+                response_location TEXT,
+                response_headers TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS url_visits (
+				rule_url TEXT,
+				ts_ms INTEGER,
+				id TEXT,
+				request_details TEXT,
+
+				PRIMARY KEY (rule_url, ts_ms, id)
+			);
+        `
+    }
+];
 
 export class RediflareRedirectRule extends DurableObject {
 	env: CfEnv;
@@ -271,8 +323,10 @@ export class RediflareRedirectRule extends DurableObject {
 
 	async redirect(eyeballRequest: Request) {
 		let ruleUrl = ruleUrlFromEyeballRequest(eyeballRequest);
-
 		let rule = this.rules.get(ruleUrl);
+
+        // console.log("BOOM :: ", [...this.rules.entries()], rule, eyeballRequest.url, ruleUrl);
+
 		if (!rule) {
 			return new Response('Not found 404', {
 				status: 404,
