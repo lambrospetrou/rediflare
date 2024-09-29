@@ -417,6 +417,7 @@ function Dashboard(props: {}) {
 }
 
 function Layout(props: { title: string; description: string; image: string; children?: any }) {
+	const image = props.image || "https://go.rediflare.com/ui/static/20240929T1559-B3S2MSGffh.png";
 	return html`
 		<html>
 			<head>
@@ -425,9 +426,9 @@ function Layout(props: { title: string; description: string; image: string; chil
 				<meta name="color-scheme" content="light dark" />
 				<title>${props.title}</title>
 				<meta name="description" content="${props.description}" />
-				<meta property="og:type" content="article" />
+				<meta property="og:type" content="website" />
 				<meta property="og:title" content="${props.title}" />
-				<meta property="og:image" content="${props.image}" />
+				<meta property="og:image" content="${image}" />
 
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
 
