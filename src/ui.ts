@@ -83,7 +83,8 @@ function AboutIndex() {
 
 	<hr>
 	<footer class="container text-center">
-		${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
+		<p>${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌</p>
+		<p><small><a href="/-_-/ui/" class="secondary">Open Admin UI</a></small></p>
 	</footer>
 
 	<style>
