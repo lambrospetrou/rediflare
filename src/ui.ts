@@ -51,7 +51,7 @@ function AboutIndex() {
 	<main class="container">
 		<section class="about-hero">
 			<div>
-				<h2 class="text-center"><kbd>Unlimited URL</kbd> redirections. Practically <mark>FREE.</mark></h2>
+				<h2 class="text-center"><kbd>Unlimited</kbd> URL redirections. Practically <mark>FREE.</mark></h2>
 				<p class="text-center"><em>Self-host Rediflare in your own Cloudflare account.</em></p>
 			</div>
 
