@@ -111,29 +111,37 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
 
 	return html`
-		<div id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+	<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+		<h3>Existing rules</h3>
+		<div>
 			${
 				// TODO Improve :)
 				data.rules.map(
 					(rule) => html`
-						<div>
-							<pre>${raw(JSON.stringify(rule, null, 2))}</pre>
-							<button
-								hx-post="/-_-/ui/partials.DeleteRule"
-								hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
-								hx-target="#redirection-rules-container"
-								hx-confirm="Are you sure you want to delete rule?"
-							>
-								Delete rule
-							</button>
-						</div>
+						<article>
+							<header>${rule.ruleUrl}</header>
+							<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
+							<footer>
+								<button
+									hx-post="/-_-/ui/partials.DeleteRule"
+									hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
+									hx-target="#redirection-rules-container"
+									hx-confirm="Are you sure you want to delete rule?"
+								>
+									Delete rule
+								</button>
+							</footer>
+						</article>
 						<hr />
 					`
 				)
 			}
 		</div>
 		<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-			<h3>Statistics</h3>
+			<hgroup>
+				<h2>Statistics</h2>
+				<p><em>Coming soon</em></p>
+			</hgroup>
 			${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
 			<hr />
 			${
@@ -148,13 +156,17 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 				)
 			}
 		</div>
+	</section>
 	`;
 }
 
 function CreateRuleForm() {
 	return html`
-		<div id="create-rule-container">
-			<h3>Create new redirection rule</h3>
+		<form id="create-rule-container" action="#">
+			<hgroup>
+				<h3>Create new redirection rule</h3>
+				<p>Edit the JSON below in the box below to your needs, but keep all the properties.</p>
+			</hgroup>
 			<textarea id="new-rule-json" name="newRuleJson" cols="60" rows="7">
 {
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
@@ -162,21 +174,35 @@ function CreateRuleForm() {
 "responseLocation": "https://skybear.net",
 "responseHeaders": []
 }
-		</textarea>
+			</textarea>
 			<button hx-post="/-_-/ui/partials.CreateRule" hx-include="#new-rule-json" hx-target="#create-rule-container" hx-swap="outerHTML">
 				Create redirection rule
 			</button>
-		</div>
+		</form>
 	`;
 }
 
 function Dashboard(props: {}) {
 	const createRuleForm = CreateRuleForm();
-	return html`<main>
-		<h1>Rediflare</h1>
+	return html`
+	<header class="container">
+		<nav>
+			<ul>
+				<li><h1 style="margin-bottom: 0">Rediflare</h1></li>
+			</ul>
+			<ul>
+				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
+				<li><a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a></li>
+			</ul>
+		</nav>
+	</header>
 
+	<main class="container">
 		<section>
-			<h2>Rediflare-Api-Key</h2>
+			<hgroup>
+				<h2>Rediflare-Api-Key</h2>
+				<p>Paste your API key to enable the page to fetch your data.</p>
+			</hgroup>
 			<!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
 			<input
 				type="text"
@@ -194,7 +220,7 @@ function Dashboard(props: {}) {
 			<h2>Redirection Rules</h2>
 
 			${createRuleForm}
-
+			<hr>
 			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
 				<p>
 					Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g.
@@ -220,7 +246,9 @@ function Dashboard(props: {}) {
 				parseApiKeyFromHash();
 			})();
 		</script>
-	</main>`;
+	</main>
+	<footer class="container">Rediflare is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌</footer>
+	`;
 }
 
 function Layout(props: { title: string; description: string; image: string; children?: any }) {
@@ -234,6 +262,7 @@ function Layout(props: { title: string; description: string; image: string; chil
 				<meta property="og:title" content="${props.title}" />
 				<meta property="og:image" content="${props.image}" />
 
+				<link rel="stylesheet" href="/-_-/ui/static/pico.v2.0.6.min.css">
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
 			</head>
 			<body>
