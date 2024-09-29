@@ -12,11 +12,11 @@ function RediflareName() {
 	return html`<span class="rediflare-name">Rediflare <span style="color: var(--pico-primary)">↝</span></span>`;
 }
 
-uiAbout.get("/", async (c) => {
+uiAbout.get('/', async (c) => {
 	return c.html(
 		Layout({
-			title: 'Rediflare - Unlimited redirections for FREE',
-			description: 'Unlimited URL redirections for FREE, deployed in your own account.',
+			title: 'Rediflare - Unlimited URL redirections for FREE',
+			description: 'URL redirections tool for FREE, deployed in your own Cloudflare account.',
 			image: '',
 			children: AboutIndex(),
 		})
@@ -182,8 +182,8 @@ uiAdmin.get('/-_-/ui', async (c) => {
 	const main = Dashboard({});
 	return c.html(
 		Layout({
-			title: 'Rediflare - Unlimited redirections for FREE',
-			description: 'Unlimited URL redirections for FREE, deployed in your own account.',
+			title: 'Rediflare - Unlimited URL redirections for FREE',
+			description: 'URL redirections tool for FREE, deployed in your own Cloudflare account.',
 			image: '',
 			children: main,
 		})
