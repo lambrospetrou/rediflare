@@ -24,16 +24,23 @@ uiAbout.get("/", async (c) => {
 });
 
 function AboutIndex() {
+	const heroSnippetCode = `"ruleUrl": "https://go.lambros.dev/short-path",
+"responseStatus": 301,
+"responseLocation": "https://skybear.net",
+"responseHeaders": [
+    ["X-Powered-By", "Rediflare"]
+]`;
+
 	return html`
-	<header class="container">
+	<header class="about-header container">
 		<nav>
 			<ul>
 				<li>
-					<h1 style="margin-bottom: 0"><a href="/" class="contrast">${RediflareName()}</a></h1>
+					<p style="margin-bottom: 0"><a href="/" class="contrast">${RediflareName()}</span></p>
 				</li>
 			</ul>
 			<ul>
-				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
+				<!-- <li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li> -->
 				<li>
 					<a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a>
 				</li>
@@ -42,11 +49,112 @@ function AboutIndex() {
 	</header>
 
 	<main class="container">
+		<section class="about-hero">
+			<div>
+				<h2 class="text-center"><kbd>Unlimited URL</kbd> redirections. Practically <mark>FREE.</mark></h2>
+				<p class="text-center"><em>Self-host Rediflare in your own Cloudflare account.</em></p>
+			</div>
+
+			<div class="mac-window">
+				<div class="mac-window-header">
+					<div class="mac-window-buttons">
+						<div class="mac-window-button mac-window-close"></div>
+						<div class="mac-window-button mac-window-minimize"></div>
+						<div class="mac-window-button mac-window-maximize"></div>
+					</div>
+				</div>
+				<div class="mac-window-content overflow-auto">
+					<pre class="hero-snippet"><code>${heroSnippetCode}</code></pre>
+				</div>
+			</div>
+		</section>
+
+		<section class="text-center">
+			<p><code><span class="self-window-location-domain">go.lambros.dev</span></code> uses ${RediflareName()} for its URL redirection needs.</p>
+			<p><a href="https://github.com/lambrospetrou/rediflare/fork"><button>Fork the repository ➜ <code>npm run deploy:prod</code></button></a></p>
+		</section>
 	</main>
 
-	<footer class="container">
+	<hr>
+	<footer class="container text-center">
 		${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
 	</footer>
+
+	<style>
+		:root {
+			--app-window-code-bg-color: #f0f0f0;
+		}
+
+		h1, h2, h3, h4, h5, p {
+			text-wrap: pretty;
+		}
+
+		.text-center { text-align: center; }
+
+		.about-header .rediflare-name {
+			font-size: 2rem;
+		}
+
+		.about-hero {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			margin: 2rem auto 4rem auto;
+		}
+
+		.about-hero h2 {
+			line-height: 2.25rem;
+		}
+
+		pre.hero-snippet {
+			--pico-code-background-color: var(--app-window-code-bg-color);
+			margin-bottom: 0;
+		}
+		pre.hero-snippet code {
+			padding: 0;
+		}
+
+		.mac-window {
+			width: fit-content;
+			max-width: 95%;
+			background-color: var(--app-window-code-bg-color);
+			border-radius: 8px;
+			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+			overflow: hidden;
+		}
+
+		.mac-window-header {
+			background-color: #e0e0e0;
+			padding: 10px;
+			display: flex;
+			align-items: center;
+		}
+
+		.mac-window-buttons {
+			display: flex;
+			gap: 6px;
+		}
+
+		.mac-window-button {
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+		}
+
+		.mac-window-close { background-color: #ff5f56; }
+		.mac-window-minimize { background-color: #ffbd2e; }
+		.mac-window-maximize { background-color: #27c93f; }
+
+		.mac-window-content {
+			padding: 1rem;
+		}
+
+		@media (min-width: 50rem) {
+			.mac-window-content {
+				padding: 2rem;
+			}
+		}
+	</style>
 `;
 }
 
@@ -215,7 +323,7 @@ function CreateRuleForm() {
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
 "responseStatus": 301,
 "responseLocation": "https://skybear.net",
-"responseHeaders": []
+"responseHeaders": [["Powered-By", "Rediflare"]]
 }
 			</textarea
 			>
