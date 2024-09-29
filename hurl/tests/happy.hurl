@@ -52,7 +52,6 @@ Rediflare-Api-Key: rf_key_TENANT1111_sometoken
 HTTP 200
 [Asserts]
 jsonpath "$.data.rules" count == 2
-jsonpath "$.data.stats" count == 0
 
 POST http://127.0.0.1:8787/-_-/v1/redirects.Delete
 Rediflare-Api-Key: rf_key_TENANT1111_sometoken

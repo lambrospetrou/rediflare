@@ -4,10 +4,10 @@
   "scripts": {
     "deploy:staging": "wrangler deploy --env staging",
     "deploy:prod": "wrangler deploy --env prod",
-    "dev": "wrangler dev --env staging",
-    "start": "wrangler dev --env staging",
+    "dev": "wrangler dev --env dev",
+    "start": "wrangler dev --env dev",
     "cf-typegen": "wrangler types",
-    "test": "hurl --test ./hurl",
+    "test": "hurl --test ./hurl/tests",
     "LAMBROS-01": "THE TARGETS BELOW ARE ONLY FOR LAMBROS. CREATE YOUR OWN IF YOU FORK!",
     "LAMBROS-PROD": "hurl --test --variables-file ./hurl/.env.prod ./hurl/go.lambros.dev-upserts.hurl"
   },
