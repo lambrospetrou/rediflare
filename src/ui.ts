@@ -329,7 +329,7 @@ function CreateRuleForm() {
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
 "responseStatus": 301,
 "responseLocation": "https://skybear.net",
-"responseHeaders": [["Powered-By", "Rediflare"]]
+"responseHeaders": [["X-Powered-By", "Rediflare"]]
 }
 			</textarea
 			>
@@ -347,7 +347,7 @@ function Dashboard(props: {}) {
 			<nav>
 				<ul>
 					<li>
-						<h1 style="margin-bottom: 0"><a href="/" class="contrast">${RediflareName()}</a></h1>
+						<h1 style="margin-bottom: 0"><a href="https://go.lambros.dev" class="contrast">${RediflareName()}</a></h1>
 					</li>
 				</ul>
 				<ul>
