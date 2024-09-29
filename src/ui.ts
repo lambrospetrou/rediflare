@@ -165,7 +165,7 @@ function CreateRuleForm() {
 		<form id="create-rule-container" action="#">
 			<hgroup>
 				<h3>Create new redirection rule</h3>
-				<p>Edit the JSON below in the box below to your needs, but keep all the properties.</p>
+				<p>Edit the JSON in the box below to your needs, but keep all the properties.</p>
 			</hgroup>
 			<textarea id="new-rule-json" name="newRuleJson" cols="60" rows="7">
 {
@@ -188,7 +188,7 @@ function Dashboard(props: {}) {
 	<header class="container">
 		<nav>
 			<ul>
-				<li><h1 style="margin-bottom: 0">Rediflare</h1></li>
+				<li><h1 style="margin-bottom: 0">Rediflare ↝</h1></li>
 			</ul>
 			<ul>
 				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
