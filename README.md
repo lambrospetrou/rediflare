@@ -7,7 +7,8 @@ Built with [Cloudflare Workers](https://developers.cloudflare.com/workers/) and 
 This application has the basis for multi-tenancy (e.g. SaaS), but it's still unfinished.
 
 It has everything you need for single tenant cases though, so feel free to deploy it in your own Cloudflare account and setup your redirection rules.
-The UI is super basic, and quite limited, but you can do everything through the API 😅🙃
+
+There is an admin UI and an API that you can use to manage your redirection rules 😅🙃
 
 ## Development and Deployment
 
@@ -27,7 +28,7 @@ That's it! 🥳
 
 ## Authentication
 
-The API provided by the Worker is protected using the header `Rediflare-Api-Key` that expects a string value of the format `rf_key_<TENANTID>_<TOKEN>`.
+The API provided by the Worker is protected using the header `Rediflare-Api-Key` that expects a string value of the format `rf_key_<TENANT_ID>_<TOKEN>`.
 
 The `TENANTID` should be non-empty and is used as sharding mechanism for the multi-tenancy aspects. Some of the multi-tenancy features are not implemented yet though.
 
@@ -45,14 +46,38 @@ rf_key_dP1gH07gDCnWwql9HrwPshZzsQfxCCgh_vm6PT3RH5fK37hS8fl6B5NlRJ8M460dKD4qS
 
 Then, once you have the above key run `npx wrangler secret put VAR_API_AUTH_ADMIN_KEYS_CSV` to store it in your worker (you will need to paste it after prompted), or just create it through the Cloudflare dashboard.
 
+### Tenant ID
+
+- Each tenant ID should be considered like an account/organization.
+- Each tenant can have multiple API keys (but the tenant ID portion should be the same across them to be considered as the same tenant).
+- Each tenant can have unlimited number of custom domains using the same deployment (Cloudflare limits apply, not application logic limits).
+- There is one database (SQLite in Durable Objects (DO)) per tenant for coordinating the creation/deletion of redirection rules. However, the actual URL visits are NOT bottlenecked by the single DO for the tenant. Each redirection rule lives in its own Durable Object and URL visits go straight to that DO from the edge workers.
+
+## Custom domains
+
+Once you have the project deployed, you can add custom domains to it ([see docs](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/#set-up-a-custom-domain-in-your-wranglertoml)).
+
+Just modify the `wrangler.toml` file for the corresponding environment (e.g. `dev`, `staging`, `prod`) you want and add as many custom domains as you want.
+
+```
+routes = [
+  { pattern = "shop.example.com", custom_domain = true },
+  { pattern = "shop-two.example.com", custom_domain = true }
+]
+```
+
+Fun fact, with Rediflare it's not the domain that decides the "account used" but the `TENANT_ID` part of the API key (see previous section).
+
+So, as long as you use the same API key, accessing the `/-_-/ui/` admin UI from any of your custom domains is exactly the same.
+
 ## Admin UI
 
-The UI is still unpolished, but there is an admin UI at `/-_-/ui/`, e.g. <http://127.0.0.1:8787/-_-/ui/> where you can put the test API KEY `rf_key_TENANT1111_sometoken` in the input box and it will start pinging the local workers (started in step 3 above).
+There is an admin UI at `/-_-/ui/`, e.g. <http://127.0.0.1:8787/-_-/ui/> where you can put the test API KEY `rf_key_TENANT1111_sometoken` in the input box and it will start pinging the local workers (started in step 3 above).
 
 I often refresh the page to make sure everything is reset, so for ease of use you can also provide the token in the URL hash segment, e.g. <http://127.0.0.1:8787/-_-/ui/#rfApiKey=rf_key_TENANT1111_sometoken>.
 
-The admin UI only lists, and allows deletion of redirection rules.
-Use the API to create them.
+The admin UI allows you to list, delete, and create redirection rules.
+Soon, the UI will also show analytics and statistics about the visits of these links, which was one of the motivations doing the project in the first place.
 
 ## API
 
