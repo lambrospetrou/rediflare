@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { html, raw } from 'hono/html';
 import { ApiListRedirectRulesResponse, RequestVars } from './types';
 import { HTTPException } from 'hono/http-exception';
-import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects } from './durable-objects';
+import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects, routeUpsertUrlRedirect } from './durable-objects';
 import { apiKeyAuth } from './shared';
 
 export const uiAdmin = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
@@ -37,6 +37,7 @@ uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 	return c.html(
 		RulesAndStats({
 			data,
+			swapOOB: false,
 		})
 	);
 });
@@ -60,12 +61,40 @@ uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
 	return c.html(
 		RulesAndStats({
 			data,
+			swapOOB: false,
 		})
 	);
 });
 
-function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
-	const { data } = props;
+uiAdmin.post('/-_-/ui/partials.CreateRule', async (c) => {
+	const form = await c.req.raw.formData();
+	const newRuleJson = (form.get('newRuleJson') as string) ?? '';
+	if (!newRuleJson) {
+		throw new HTTPException(400, {
+			res: new Response(`<p>Invalid request for creation!</p>`, { status: 400 }),
+		});
+	}
+
+	// TODO Parse and validate it before sending it to the DO.
+	const { data } = await routeUpsertUrlRedirect(
+		new Request(c.req.raw.url, {
+			body: newRuleJson,
+			method: 'POST',
+		}),
+		c.env,
+		c.var.tenantId
+	);
+	const rulesList = RulesAndStats({
+		data,
+		swapOOB: true,
+	});
+	const createRuleForm = CreateRuleForm();
+
+	return c.html(html`${createRuleForm} ${rulesList}`);
+});
+
+function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean }) {
+	const { data, swapOOB } = props;
 
 	if (!data.rules.length && !data.stats.length) {
 		return html`<p>You have no redirect rules yet (•_•)</p>`;
@@ -82,7 +111,7 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
 
 	return html`
-		<div id="rules-list">
+		<div id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 			${
 				// TODO Improve :)
 				data.rules.map(
@@ -103,7 +132,7 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 				)
 			}
 		</div>
-		<div id="stats-list">
+		<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 			<h3>Statistics</h3>
 			${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
 			<hr />
@@ -122,8 +151,28 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data'] }) {
 	`;
 }
 
+function CreateRuleForm() {
+	return html`
+		<div id="create-rule-container">
+			<h3>Create new redirection rule</h3>
+			<textarea id="new-rule-json" name="newRuleJson" cols="60" rows="7">
+{
+"ruleUrl": "http://127.0.0.1:8787/test-rule-11",
+"responseStatus": 301,
+"responseLocation": "https://skybear.net",
+"responseHeaders": []
+}
+		</textarea>
+			<button hx-post="/-_-/ui/partials.CreateRule" hx-include="#new-rule-json" hx-target="#create-rule-container" hx-swap="outerHTML">
+				Create redirection rule
+			</button>
+		</div>
+	`;
+}
+
 function Dashboard(props: {}) {
-	return html` <main>
+	const createRuleForm = CreateRuleForm();
+	return html`<main>
 		<h1>Rediflare</h1>
 
 		<section>
@@ -143,9 +192,15 @@ function Dashboard(props: {}) {
 
 		<section>
 			<h2>Redirection Rules</h2>
+
+			${createRuleForm}
+
 			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
-                <p>Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g. <code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.</p>
-            </div>
+				<p>
+					Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g.
+					<code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.
+				</p>
+			</div>
 		</section>
 
 		<script type="text/javascript">
