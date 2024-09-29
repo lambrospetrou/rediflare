@@ -82,3 +82,13 @@ The following Hurl file showcases the main functionality, but you can see a more
     }
     ```
     HTTP 200 
+
+## Architecture
+
+How are Durable Objects used in this project?
+
+_Coming soon..._
+
+## Contact - Help - Feedback
+
+Feel free to get in touch with me at [@lambrospetrou](https://x.com/LambrosPetrou).
