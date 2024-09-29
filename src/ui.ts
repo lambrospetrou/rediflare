@@ -325,14 +325,12 @@ function CreateRuleForm() {
 				<h3>Create new redirection rule</h3>
 				<p>Edit the JSON in the box below to your needs, but keep all the properties.</p>
 			</hgroup>
-			<textarea id="new-rule-json" name="newRuleJson" cols="60" rows="7">
-{
+			<textarea id="new-rule-json" name="newRuleJson" rows="6">{
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
 "responseStatus": 301,
 "responseLocation": "https://skybear.net",
 "responseHeaders": [["X-Powered-By", "Rediflare"]]
-}
-			</textarea
+}</textarea
 			>
 			<button hx-post="/-_-/ui/partials.CreateRule" hx-include="#new-rule-json" hx-target="#create-rule-container" hx-swap="outerHTML">
 				Create redirection rule
