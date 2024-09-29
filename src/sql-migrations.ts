@@ -69,12 +69,13 @@ export class SchemaMigrations {
 		}
 
 		// Make sure we still have migrations to run.
-		if (idx === sz) {
+		if (idx >= sz) {
 			return result;
 		}
 
 		const doSql = this._config.doStorage.sql;
-		this._migrations.forEach((migration) => {
+		const migrationsToRun = this._migrations.slice(idx);
+		migrationsToRun.forEach((migration) => {
 			let query = migration.sql ?? sqlGen?.(migration.idMonotonicInc);
 			if (!query) {
 				throw new Error(`migration with neither 'sql' nor 'sqlGen' provided: ${migration.idMonotonicInc}`);
