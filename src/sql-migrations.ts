@@ -23,7 +23,7 @@ export class SchemaMigrations {
 
 		const migrations = [...config.migrations];
 		migrations.sort((a, b) => a.idMonotonicInc - b.idMonotonicInc);
-		const idSeen = new Map<number, SchemaMigration>();
+		const idSeen = new Set<number>();
 		migrations.forEach((m) => {
 			if (m.idMonotonicInc < 0) {
 				throw new Error(`migration ID cannot be negative: ${m.idMonotonicInc}`);
@@ -31,6 +31,7 @@ export class SchemaMigrations {
 			if (idSeen.has(m.idMonotonicInc)) {
 				throw new Error(`duplicate migration ID detected: ${m.idMonotonicInc}`);
 			}
+			idSeen.add(m.idMonotonicInc);
 		});
 
 		this._migrations = migrations;
