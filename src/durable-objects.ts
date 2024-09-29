@@ -198,8 +198,8 @@ const RediflareRedirectRuleMigrations: SchemaMigration[] = [
 
 				PRIMARY KEY (rule_url, ts_ms, id)
 			);
-        `
-    }
+        `,
+	},
 ];
 
 export class RediflareRedirectRule extends DurableObject {
@@ -217,7 +217,8 @@ export class RediflareRedirectRule extends DurableObject {
 		}
 	> = new Map();
 
-	_sqlInitialized: boolean = false;
+	_migrations?: SchemaMigrations;
+
 	_statsAlarm: number | null = null;
 
 	/**
@@ -231,71 +232,46 @@ export class RediflareRedirectRule extends DurableObject {
 		this.sql = ctx.storage.sql;
 
 		ctx.blockConcurrencyWhile(async () => {
-			const tableExists = this.sql.exec("SELECT name FROM sqlite_master WHERE name = 'rules';").toArray().length > 0;
-			if (tableExists) {
-				await this._initTables();
-			}
-			this._statsAlarm = await this.storage.getAlarm();
+			this._migrations = new SchemaMigrations({
+				doStorage: ctx.storage,
+				migrations: RediflareRedirectRuleMigrations,
+			});
+
+			const res = await Promise.all([this._migrations.runAll(), this.storage.getAlarm()]);
+			this._statsAlarm = res[1];
+
+			this.rules = new Map(
+				this.sql
+					.exec(`SELECT * FROM rules;`)
+					.toArray()
+					.map((row) => {
+						return [
+							String(row.rule_url),
+							{
+								tenantId: String(row.tenant_id),
+								ruleUrl: String(row.rule_url),
+								responseStatus: Number(row.response_status),
+								responseLocation: String(row.response_location),
+								responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
+							},
+						];
+					})
+			);
 		});
-	}
-
-	async _initTables() {
-		if (this._sqlInitialized) {
-			return;
-		}
-
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS rules (
-				rule_url TEXT PRIMARY KEY,
-				tenant_id TEXT,
-				response_status INTEGER,
-				response_location TEXT,
-				response_headers TEXT
-			)`);
-
-		// We asynchronously aggregate this to generate fancy analytics.
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS url_visits (
-				rule_url TEXT,
-				ts_ms INTEGER,
-				id TEXT,
-				request_details TEXT,
-
-				PRIMARY KEY (rule_url, ts_ms, id)
-			)`);
-
-		this.rules = new Map(
-			this.sql
-				.exec(`SELECT * FROM rules;`)
-				.toArray()
-				.map((row) => {
-					return [
-						String(row.rule_url),
-						{
-							tenantId: String(row.tenant_id),
-							ruleUrl: String(row.rule_url),
-							responseStatus: Number(row.response_status),
-							responseLocation: String(row.response_location),
-							responseHeaders: JSON.parse(row.response_headers as string) as string[2][],
-						},
-					];
-				})
-		);
-
-		this._sqlInitialized = true;
 	}
 
 	async upsert(tenantId: string, ruleUrl: string, responseStatus: number, responseLocation: string, responseHeaders: string[2][]) {
 		// console.log('BOOM :: REDIRECT_RULE :: UPSERT', tenantId, ruleUrl, responseStatus);
 
-		await this._initTables();
-
-		this.sql.exec(
-			`INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?);`,
-			ruleUrl,
-			tenantId,
-			responseStatus,
-			responseLocation,
-			JSON.stringify(responseHeaders)
-		);
+		await this._migrations?.runAll(),
+			this.sql.exec(
+				`INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?);`,
+				ruleUrl,
+				tenantId,
+				responseStatus,
+				responseLocation,
+				JSON.stringify(responseHeaders)
+			);
 		this.rules.set(ruleUrl, {
 			tenantId,
 			ruleUrl,
@@ -315,17 +291,22 @@ export class RediflareRedirectRule extends DurableObject {
 
 	async deleteAll() {
 		this.rules.clear();
-		this._sqlInitialized = false;
 
 		this.storage.deleteAlarm();
 		await this.storage.deleteAll();
+
+		// Reset the migrations to apply next run.
+		this._migrations = new SchemaMigrations({
+			doStorage: this.ctx.storage,
+			migrations: RediflareRedirectRuleMigrations,
+		});
 	}
 
 	async redirect(eyeballRequest: Request) {
 		let ruleUrl = ruleUrlFromEyeballRequest(eyeballRequest);
 		let rule = this.rules.get(ruleUrl);
 
-        // console.log("BOOM :: ", [...this.rules.entries()], rule, eyeballRequest.url, ruleUrl);
+		// console.log("BOOM :: ", [...this.rules.entries()], rule, eyeballRequest.url, ruleUrl);
 
 		if (!rule) {
 			return new Response('Not found 404', {
@@ -333,8 +314,6 @@ export class RediflareRedirectRule extends DurableObject {
 				statusText: 'Not found',
 			});
 		}
-
-		await this._initTables();
 
 		const requestInfo = {
 			userAgent: eyeballRequest.headers.get('User-Agent'),
@@ -412,7 +391,6 @@ export class RediflareRedirectRule extends DurableObject {
 	}
 
 	async findTenantId() {
-		await this._initTables();
 		return String(this.sql.exec('SELECT tenant_id FROM rules LIMIT 1;').one().tenant_id);
 	}
 }

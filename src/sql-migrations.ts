@@ -16,7 +16,7 @@ export class SchemaMigrations {
 	_config: Omit<SchemaMigrationsConfig, '__lastAppliedMigrationMonotonicID_OVERRIDE_FOR_MANUAL_MIGRATIONS'>;
 	_migrations: SchemaMigration[];
 
-    _lastMigrationMonotonicId: number = -1
+	_lastMigrationMonotonicId: number = -1;
 
 	constructor(config: SchemaMigrationsConfig) {
 		this._config = config;
@@ -40,12 +40,12 @@ export class SchemaMigrations {
 		}
 	}
 
-    hasMigrationsToRun() {
-        if (!this._migrations.length) {
-            return false;
-        }
-        return this._lastMigrationMonotonicId !== this._migrations[this._migrations.length-1].idMonotonicInc;
-    }
+	hasMigrationsToRun() {
+		if (!this._migrations.length) {
+			return false;
+		}
+		return this._lastMigrationMonotonicId !== this._migrations[this._migrations.length - 1].idMonotonicInc;
+	}
 
 	async runAll(sqlGen?: (idMonotonicInc: number) => string) {
 		const result = {

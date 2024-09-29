@@ -7,7 +7,7 @@
     "dev": "wrangler dev --env dev",
     "start": "wrangler dev --env dev",
     "cf-typegen": "wrangler types",
-    "test": "hurl --test ./hurl/tests",
+    "test": "hurl --test --repeat 3 --jobs 1 ./hurl/tests",
     "LAMBROS-01": "THE TARGETS BELOW ARE ONLY FOR LAMBROS. CREATE YOUR OWN IF YOU FORK!",
     "LAMBROS-PROD": "hurl --test --variables-file ./hurl/.env.prod ./hurl/go.lambros.dev-upserts.hurl"
   },
