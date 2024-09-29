@@ -277,7 +277,7 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 					data.rules.map(
 						(rule) => html`
 							<article>
-								<header>${rule.ruleUrl}</header>
+								<header><a href="${rule.ruleUrl}" target="_blank">${rule.ruleUrl} ↝</a></header>
 								<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
 								<footer>
 									<button class="outline"
