@@ -24,7 +24,7 @@ uiAbout.get("/", async (c) => {
 });
 
 function AboutIndex() {
-	const heroSnippetCode = `"ruleUrl": "https://go.lambros.dev/short-path",
+	const heroSnippetCode = `"ruleUrl": "https://go.lambros.dev/it-works",
 "responseStatus": 301,
 "responseLocation": "https://skybear.net",
 "responseHeaders": [
