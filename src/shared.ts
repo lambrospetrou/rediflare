@@ -20,7 +20,10 @@ export function apiKeyAuth(env: CfEnv, request: Request) {
 	}
 
 	// TODO Move this to Workers KV to allow multiple keys for multi-tenancy.
-	if (env.VAR_API_AUTH_ADMIN_KEYS_CSV.indexOf(`,${authKey},`) < 0) {
+	const csvKeys = env.VAR_API_AUTH_ADMIN_KEYS_CSV?.split(',')
+		.map((k) => k?.trim())
+		.filter(Boolean);
+	if (csvKeys.indexOf(authKey) < 0) {
 		throw new HTTPException(403, {
 			message: 'Rediflare-Api-Key is invalid',
 		});
