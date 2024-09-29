@@ -111,52 +111,52 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
 
 	return html`
-	<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-		<h3>Existing rules</h3>
-		<div>
-			${
-				// TODO Improve :)
-				data.rules.map(
-					(rule) => html`
-						<article>
-							<header>${rule.ruleUrl}</header>
-							<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
-							<footer>
-								<button
-									hx-post="/-_-/ui/partials.DeleteRule"
-									hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
-									hx-target="#redirection-rules-container"
-									hx-confirm="Are you sure you want to delete rule?"
-								>
-									Delete rule
-								</button>
-							</footer>
-						</article>
-						<hr />
-					`
-				)
-			}
-		</div>
-		<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-			<hgroup>
-				<h2>Statistics</h2>
-				<p><em>Coming soon</em></p>
-			</hgroup>
-			${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
-			<hr />
-			${
-				// TODO Improve :)
-				data.stats.map(
-					(stat) => html`
-						<div>
-							<p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>
-							<pre>${raw(JSON.stringify(stat, null, 2))}</pre>
-						</div>
-					`
-				)
-			}
-		</div>
-	</section>
+		<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+			<h3>Existing rules</h3>
+			<div>
+				${
+					// TODO Improve :)
+					data.rules.map(
+						(rule) => html`
+							<article>
+								<header>${rule.ruleUrl}</header>
+								<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
+								<footer>
+									<button
+										hx-post="/-_-/ui/partials.DeleteRule"
+										hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
+										hx-target="#redirection-rules-container"
+										hx-confirm="Are you sure you want to delete rule?"
+									>
+										Delete rule
+									</button>
+								</footer>
+							</article>
+							<hr />
+						`
+					)
+				}
+			</div>
+			<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+				<hgroup>
+					<h2>Statistics</h2>
+					<p><em>Coming soon</em></p>
+				</hgroup>
+				${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
+				<hr />
+				${
+					// TODO Improve :)
+					data.stats.map(
+						(stat) => html`
+							<div>
+								<p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>
+								<pre>${raw(JSON.stringify(stat, null, 2))}</pre>
+							</div>
+						`
+					)
+				}
+			</div>
+		</section>
 	`;
 }
 
@@ -174,7 +174,8 @@ function CreateRuleForm() {
 "responseLocation": "https://skybear.net",
 "responseHeaders": []
 }
-			</textarea>
+			</textarea
+			>
 			<button hx-post="/-_-/ui/partials.CreateRule" hx-include="#new-rule-json" hx-target="#create-rule-container" hx-swap="outerHTML">
 				Create redirection rule
 			</button>
@@ -185,69 +186,75 @@ function CreateRuleForm() {
 function Dashboard(props: {}) {
 	const createRuleForm = CreateRuleForm();
 	return html`
-	<header class="container">
-		<nav>
-			<ul>
-				<li><h1 style="margin-bottom: 0">Rediflare <span style="color: var(--pico-primary)">↝</span></h1></li>
-			</ul>
-			<ul>
-				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
-				<li><a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a></li>
-			</ul>
-		</nav>
-	</header>
+		<header class="container">
+			<nav>
+				<ul>
+					<li>
+						<h1 style="margin-bottom: 0">Rediflare <span style="color: var(--pico-primary)">↝</span></h1>
+					</li>
+				</ul>
+				<ul>
+					<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
+					<li>
+						<a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a>
+					</li>
+				</ul>
+			</nav>
+		</header>
 
-	<main class="container">
-		<section>
-			<hgroup>
-				<h2>Rediflare-Api-Key</h2>
-				<p>Paste your API key to enable the page to fetch your data.</p>
-			</hgroup>
-			<!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
-			<input
-				type="text"
-				id="rf-api-key"
-				name="rf-api-key"
-				style="-webkit-text-security:disc"
-				hx-trigger="input"
-				hx-target="#redirection-rules-container"
-				hx-get="/-_-/ui/partials.ListRules"
-				hx-params="none"
-			/>
-		</section>
+		<main class="container">
+			<section>
+				<hgroup>
+					<h2>Rediflare-Api-Key</h2>
+					<p>Paste your API key to enable the page to fetch your data.</p>
+				</hgroup>
+				<!-- This input value is auto-injected by HTMX in the AJAX requests to the API. See helpers.js. -->
+				<input
+					type="text"
+					id="rf-api-key"
+					name="rf-api-key"
+					style="-webkit-text-security:disc"
+					hx-trigger="input"
+					hx-target="#redirection-rules-container"
+					hx-get="/-_-/ui/partials.ListRules"
+					hx-params="none"
+				/>
+			</section>
 
-		<section>
-			<h2>Redirection Rules</h2>
+			<section>
+				<h2>Redirection Rules</h2>
 
-			${createRuleForm}
-			<hr>
-			<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
-				<p>
-					Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g.
-					<code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.
-				</p>
-			</div>
-		</section>
+				${createRuleForm}
+				<hr />
+				<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
+					<p>
+						Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g.
+						<code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.
+					</p>
+				</div>
+			</section>
 
-		<script type="text/javascript">
-			(function () {
-				// Auto load the api key if it's in the hash section of the URL.
-				function parseApiKeyFromHash() {
-					let hashFragment = window.location.hash?.trim();
-					if (hashFragment) {
-						hashFragment = hashFragment.startsWith('#') ? hashFragment.substring(1) : hashFragment;
-						const params = new URLSearchParams(hashFragment);
-						const apiKey = params.get('rfApiKey')?.trim();
-						if (apiKey) {
-							document.querySelector('#rf-api-key').value = apiKey;
+			<script type="text/javascript">
+				(function () {
+					// Auto load the api key if it's in the hash section of the URL.
+					function parseApiKeyFromHash() {
+						let hashFragment = window.location.hash?.trim();
+						if (hashFragment) {
+							hashFragment = hashFragment.startsWith('#') ? hashFragment.substring(1) : hashFragment;
+							const params = new URLSearchParams(hashFragment);
+							const apiKey = params.get('rfApiKey')?.trim();
+							if (apiKey) {
+								document.querySelector('#rf-api-key').value = apiKey;
+							}
 						}
 					}
-				}
-				parseApiKeyFromHash();
-			})();
-		</script>
-	</main>
-	<footer class="container">Rediflare is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌</footer>
+					parseApiKeyFromHash();
+				})();
+			</script>
+		</main>
+		<footer class="container">
+			Rediflare is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
+		</footer>
 	`;
 }
 
@@ -256,16 +263,28 @@ function Layout(props: { title: string; description: string; image: string; chil
 		<html>
 			<head>
 				<meta charset="UTF-8" />
-				<meta name="viewport" content="width=device-width, initial-scale=1">
-    			<meta name="color-scheme" content="light dark" />
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<meta name="color-scheme" content="light dark" />
 				<title>${props.title}</title>
 				<meta name="description" content="${props.description}" />
 				<meta property="og:type" content="article" />
 				<meta property="og:title" content="${props.title}" />
 				<meta property="og:image" content="${props.image}" />
 
-				<link rel="stylesheet" href="/-_-/ui/static/pico.v2.0.6.red.min.css">
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
+
+				<link rel="stylesheet" href="/-_-/ui/static/pico.v2.0.6.red.min.css" />
+				<style>
+					:root {
+						--pico-form-element-spacing-vertical: 0.75rem;
+						--pico-form-element-spacing-horizontal: 1.125rem;
+					}
+
+					button {
+						--pico-font-weight: bold;
+						font-size: 0.875em;
+					}
+				</style>
 			</head>
 			<body>
 				${props.children}
