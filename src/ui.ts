@@ -15,8 +15,8 @@ function RediflareName() {
 uiAbout.get('/', async (c) => {
 	return c.html(
 		Layout({
-			title: 'Rediflare - Unlimited URL redirections for FREE',
-			description: 'URL redirections tool for FREE, deployed in your own Cloudflare account.',
+			title: 'Rediflare - Unlimited URL redirections. Practically FREE.',
+			description: 'URL redirections tool deployed in your own Cloudflare account.',
 			image: '',
 			children: AboutIndex(),
 		})
@@ -182,8 +182,8 @@ uiAdmin.get('/-_-/ui', async (c) => {
 	const main = Dashboard({});
 	return c.html(
 		Layout({
-			title: 'Rediflare - Unlimited URL redirections for FREE',
-			description: 'URL redirections tool for FREE, deployed in your own Cloudflare account.',
+			title: 'Rediflare - Unlimited URL redirections. Practically FREE.',
+			description: 'URL redirections tool deployed in your own Cloudflare account.',
 			image: '',
 			children: main,
 		})
