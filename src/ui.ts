@@ -24,8 +24,8 @@ uiAbout.get("/", async (c) => {
 });
 
 function AboutIndex() {
-	const heroSnippetCode = `"ruleUrl": "https://go.lambros.dev/it-works",
-"responseStatus": 301,
+	const heroSnippetCode = `"ruleUrl": "https://go.rediflare.com/boom",
+"responseStatus": 302,
 "responseLocation": "https://skybear.net",
 "responseHeaders": [
     ["X-Powered-By", "Rediflare"]
@@ -70,12 +70,12 @@ function AboutIndex() {
 		</section>
 
 		<section class="text-center">
-			<p><code><span class="self-window-location-domain">go.lambros.dev</span></code> uses ${RediflareName()} for its URL redirection needs.</p>
+			<p><code><span class="self-window-location-domain">go.rediflare.com</span></code> uses ${RediflareName()} for its URL redirection needs.</p>
 			<p><a href="https://github.com/lambrospetrou/rediflare/fork"><button>Fork the repository ➜ <code>npm run deploy:prod</code></button></a></p>
 
 			<script>
 			(function() {
-				document.querySelectorAll(".self-window-location-domain").forEach(n => n.innerHTML = window.location.host ?? "go.lambros.dev");
+				document.querySelectorAll(".self-window-location-domain").forEach(n => n.innerHTML = window.location.host ?? "go.rediflare.com");
 			})()
 			</script>
 		</section>
@@ -348,7 +348,7 @@ function Dashboard(props: {}) {
 			<nav>
 				<ul>
 					<li>
-						<h1 style="margin-bottom: 0"><a href="https://go.lambros.dev" class="contrast">${RediflareName()}</a></h1>
+						<h1 style="margin-bottom: 0"><a href="https://rediflare.com" class="contrast">${RediflareName()}</a></h1>
 					</li>
 				</ul>
 				<ul>
