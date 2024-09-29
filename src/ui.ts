@@ -188,7 +188,7 @@ function Dashboard(props: {}) {
 	<header class="container">
 		<nav>
 			<ul>
-				<li><h1 style="margin-bottom: 0">Rediflare ↝</h1></li>
+				<li><h1 style="margin-bottom: 0">Rediflare <span style="color: var(--pico-primary)">↝</span></h1></li>
 			</ul>
 			<ul>
 				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
@@ -256,13 +256,15 @@ function Layout(props: { title: string; description: string; image: string; chil
 		<html>
 			<head>
 				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1">
+    			<meta name="color-scheme" content="light dark" />
 				<title>${props.title}</title>
 				<meta name="description" content="${props.description}" />
 				<meta property="og:type" content="article" />
 				<meta property="og:title" content="${props.title}" />
 				<meta property="og:image" content="${props.image}" />
 
-				<link rel="stylesheet" href="/-_-/ui/static/pico.v2.0.6.min.css">
+				<link rel="stylesheet" href="/-_-/ui/static/pico.v2.0.6.red.min.css">
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
 			</head>
 			<body>
