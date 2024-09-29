@@ -72,6 +72,12 @@ function AboutIndex() {
 		<section class="text-center">
 			<p><code><span class="self-window-location-domain">go.lambros.dev</span></code> uses ${RediflareName()} for its URL redirection needs.</p>
 			<p><a href="https://github.com/lambrospetrou/rediflare/fork"><button>Fork the repository ➜ <code>npm run deploy:prod</code></button></a></p>
+
+			<script>
+			(function() {
+				document.querySelectorAll(".self-window-location-domain").forEach(n => n.innerHTML = window.location.host ?? "go.lambros.dev");
+			})()
+			</script>
 		</section>
 	</main>
 
