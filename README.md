@@ -35,6 +35,16 @@ The whole API key is checked against a [Secret](https://developers.cloudflare.co
 
 In the future, these api keys will move to Workers KV to allow unlimited number of tenants.
 
+To generate an API key according to the format expected run: `npm run --silent gen:apikey | tail -n1`
+
+Example:
+```sh
+npm run --silent gen:apikey | tail -n1
+rf_key_SQmpJ1DrGsHzkGsf08fRp4XNDzrG2dnv_6VbdWbPDNqXSXsCFDpzn12M9Ch3SnkMMGrN0
+```
+
+Then, once you have the above key run `npx wrangler secret put VAR_API_AUTH_ADMIN_KEYS_CSV` to store it in your worker (you will need to paste it after prompted), or just create it through the Cloudflare dashboard.
+
 ## Admin UI
 
 The UI is still unpolished, but there is an admin UI at `/-_-/ui/`, e.g. <http://127.0.0.1:8787/-_-/ui/> where you can put the test API KEY `rf_key_TENANT1111_sometoken` in the input box and it will start pinging the local workers (started in step 3 above).
