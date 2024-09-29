@@ -10,7 +10,7 @@ import { cors } from 'hono/cors';
 import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects, routeRedirectRequest, routeUpsertUrlRedirect } from './durable-objects';
 export { RediflareTenant, RediflareRedirectRule } from './durable-objects';
 
-import { uiAdmin } from './ui';
+import { uiAbout, uiAdmin } from './ui';
 import { RequestVars } from './types';
 import { apiKeyAuth } from './shared';
 
@@ -76,6 +76,7 @@ app.post('/-_-/v1/redirects.Delete', async (c) => {
 });
 
 app.route('/', uiAdmin);
+app.route('/', uiAbout);
 
 app.get('/*', async (c) => {
 	return routeRedirectRequest(c.req.raw, c.env);

@@ -6,6 +6,49 @@ import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects, routeUpsertUrlRed
 import { apiKeyAuth } from './shared';
 
 export const uiAdmin = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
+export const uiAbout = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
+
+function RediflareName() {
+	return html`<span class="rediflare-name">Rediflare <span style="color: var(--pico-primary)">↝</span></span>`;
+}
+
+uiAbout.get("/", async (c) => {
+	return c.html(
+		Layout({
+			title: 'Rediflare - Unlimited redirections for FREE',
+			description: 'Unlimited URL redirections for FREE, deployed in your own account.',
+			image: '',
+			children: AboutIndex(),
+		})
+	);
+});
+
+function AboutIndex() {
+	return html`
+	<header class="container">
+		<nav>
+			<ul>
+				<li>
+					<h1 style="margin-bottom: 0"><a href="/" class="contrast">${RediflareName()}</a></h1>
+				</li>
+			</ul>
+			<ul>
+				<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
+				<li>
+					<a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a>
+				</li>
+			</ul>
+		</nav>
+	</header>
+
+	<main class="container">
+	</main>
+
+	<footer class="container">
+		${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
+	</footer>
+`;
+}
 
 uiAdmin.use('/-_-/ui/partials.*', async (c, next) => {
 	const tenantId = apiKeyAuth(c.env, c.req.raw);
@@ -190,11 +233,11 @@ function Dashboard(props: {}) {
 			<nav>
 				<ul>
 					<li>
-						<h1 style="margin-bottom: 0">Rediflare <span style="color: var(--pico-primary)">↝</span></h1>
+						<h1 style="margin-bottom: 0"><a href="/" class="contrast">${RediflareName()}</a></h1>
 					</li>
 				</ul>
 				<ul>
-					<li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li>
+					<!-- <li><a href="https://developers.cloudflare.com/durable-objects/" class="contrast">Durable Objects</a></li> -->
 					<li>
 						<a href="https://github.com/lambrospetrou/rediflare" target="_blank"><button class="contrast">Github repo</button></a>
 					</li>
@@ -253,7 +296,7 @@ function Dashboard(props: {}) {
 			</script>
 		</main>
 		<footer class="container">
-			Rediflare is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
+			${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
 		</footer>
 	`;
 }
@@ -283,6 +326,10 @@ function Layout(props: { title: string; description: string; image: string; chil
 					button {
 						--pico-font-weight: bold;
 						font-size: 0.875em;
+					}
+
+					.rediflare-name {
+						font-weight: bold;
 					}
 				</style>
 			</head>
