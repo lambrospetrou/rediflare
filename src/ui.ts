@@ -280,7 +280,7 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 								<header>${rule.ruleUrl}</header>
 								<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
 								<footer>
-									<button
+									<button class="outline"
 										hx-post="/-_-/ui/partials.DeleteRule"
 										hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
 										hx-target="#redirection-rules-container"
