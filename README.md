@@ -25,6 +25,16 @@ I assume that you already have a Cloudflare account, and you checked out this re
 
 That's it! 🥳
 
+## Authentication
+
+The API provided by the Worker is protected using the header `Rediflare-Api-Key` that expects a string value of the format `rf_key_<TENANTID>_<TOKEN>`.
+
+The `TENANTID` should be non-empty and is used as sharding mechanism for the multi-tenancy aspects. Some of the multi-tenancy features are not implemented yet though.
+
+The whole API key is checked against a [Secret](https://developers.cloudflare.com/workers/configuration/secrets/) configured for the worker named `VAR_API_AUTH_ADMIN_KEYS_CSV` (as you saw in step 2 above).
+
+In the future, these api keys will move to Workers KV to allow unlimited number of tenants.
+
 ## Admin UI
 
 The UI is still unpolished, but there is an admin UI at `/-_-/ui/`, e.g. <http://127.0.0.1:8787/-_-/ui/> where you can put the test API KEY `rf_key_TENANT1111_sometoken` in the input box and it will start pinging the local workers (started in step 3 above).
