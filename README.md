@@ -12,7 +12,7 @@ There is an admin UI and an API that you can use to manage your redirection rule
 
 ## Development and Deployment
 
-I assume that you already have a Cloudflare account, and you checked out this repository.
+I assume that you already have a Cloudflare account with a Workers Paid plan ($5/month) since for now Durable Objects do not have a free tier (yet!), and you checked out this repository.
 
 1. Install dependencies: `npm ci`.
 2. Create a local file `.dev.vars` with the following content:
