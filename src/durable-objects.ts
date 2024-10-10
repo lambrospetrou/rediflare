@@ -320,8 +320,7 @@ export class RediflareRedirectRule extends DurableObject {
 		};
 		this.sql.exec(`INSERT INTO url_visits VALUES (?, ?, ?, ?)`, ruleUrl, Date.now(), crypto.randomUUID(), JSON.stringify(requestInfo));
 
-		// FIXME Alarms are broken for SQLite DOs as of 2024-09-27, so enable them later.
-		// await this.scheduleStatsSubmission();
+		await this.scheduleStatsSubmission();
 
 		const h = new Headers();
 		h.set('X-Powered-By', 'rediflare');
@@ -379,15 +378,20 @@ export class RediflareRedirectRule extends DurableObject {
 
 		let id: DurableObjectId = this.env.REDIFLARE_TENANT.idFromName(tenantId);
 		let tenantStub = this.env.REDIFLARE_TENANT.get(id);
-		await tenantStub.recordStats(aggStats);
 
-		// TODO Publish stats to Workers Analytics Engine with more fine-grained detail (e.g. user agent).
+		try {
+			await tenantStub.recordStats(aggStats);
 
-		// Delete all data from more than 2 hours ago to keep the storage low in this DO.
-		this.sql.exec(`
-            DELETE FROM url_visits
-            WHERE ts_ms < (strftime('%s', 'now') * 1000) - (2 * 3600 * 1000);    
-        `);
+			// TODO Publish stats to Workers Analytics Engine with more fine-grained detail (e.g. user agent).
+
+			// Delete all data from more than 2 hours ago to keep the storage low in this DO.
+			this.sql.exec(`
+				DELETE FROM url_visits
+				WHERE ts_ms < (strftime('%s', 'now') * 1000) - (2 * 3600 * 1000);    
+			`);
+		} catch (e) {
+			console.error({message: "failed to record stats on the tenand DO", error: e});
+		}
 	}
 
 	async findTenantId() {

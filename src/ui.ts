@@ -266,7 +266,10 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 	});
 
 	const totalAggs = new Map<string, number>();
-	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, totalAggs.get(s.ruleUrl) ?? 0 + s.totalVisits));
+	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, (totalAggs.get(s.ruleUrl) ?? 0) + s.totalVisits));
+	const totalCountsSorted = [...totalAggs.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+
+	// console.log("BOOM :: rules and stats", {data});
 
 	return html`
 		<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
@@ -298,18 +301,31 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 			<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 				<hgroup>
 					<h2>Statistics</h2>
-					<p><em>Coming soon</em></p>
+					${
+						data.stats.length === 0 ? html`<p>No stats have been aggregated yet.</p>` : null
+					}
 				</hgroup>
-				${[...totalAggs.entries()].map(([ruleUrl, cnt]) => html`<p>${ruleUrl}: ${cnt}</p>`)}
+				<table class="striped">
+					<thead>
+						<tr>
+							<th scope="col">Rule URL</th>
+							<th scope="col">Total count</th>
+						</tr>
+					</thead>
+					<tbody>
+						${totalCountsSorted.map(([ruleUrl, cnt]) => html`<tr><th scope="row">${ruleUrl}</th><td>${cnt}</td></tr>`)}
+					</tbody>
+				</table>
 				<hr />
 				${
 					// TODO Improve :)
 					data.stats.map(
 						(stat) => html`
-							<div>
-								<p>Hour: ${new Date(stat.tsHourMs).toISOString()}</p>
-								<pre>${raw(JSON.stringify(stat, null, 2))}</pre>
-							</div>
+							<article>
+								<header><h4>Hour bucket: ${new Date(stat.tsHourMs).toISOString()}</h4></header>
+								<pre><code>${raw(JSON.stringify(stat, null, 2))}</code></pre>
+								<footer></footer>
+							</article>
 						`
 					)
 				}
@@ -327,7 +343,7 @@ function CreateRuleForm() {
 			</hgroup>
 			<textarea id="new-rule-json" name="newRuleJson" rows="6">{
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
-"responseStatus": 301,
+"responseStatus": 302,
 "responseLocation": "https://skybear.net",
 "responseHeaders": [["X-Powered-By", "Rediflare"]]
 }</textarea
@@ -427,6 +443,8 @@ function Layout(props: { title: string; description: string; image: string; chil
 				<meta property="og:type" content="website" />
 				<meta property="og:title" content="${props.title}" />
 				<meta property="og:image" content="${image}" />
+
+				<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%23990000%22>↝</text></svg>">
 
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
 
