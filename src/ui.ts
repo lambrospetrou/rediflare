@@ -4,6 +4,7 @@ import { ApiListRedirectRulesResponse, RequestVars } from './types';
 import { HTTPException } from 'hono/http-exception';
 import { CfEnv, routeDeleteUrlRedirect, routeListUrlRedirects, routeUpsertUrlRedirect } from './durable-objects';
 import { apiKeyAuth } from './shared';
+import { nanoid } from 'nanoid';
 
 export const uiAdmin = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
 export const uiAbout = new Hono<{ Bindings: CfEnv; Variables: RequestVars }>();
@@ -192,12 +193,29 @@ uiAdmin.get('/-_-/ui', async (c) => {
 
 uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 	const { data } = await routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
-	return c.html(
-		RulesAndStats({
-			data,
-			swapOOB: false,
-		})
-	);
+	const rulesEl = Rules({
+		data,
+		swapOOB: false,
+	});
+	const statsEl = RuleStats({
+		data,
+		swapOOB: false,
+	});
+	return c.html(html`${rulesEl} ${statsEl}`);
+});
+
+uiAdmin.get('/-_-/ui/partials.ListStats', async (c) => {
+	const { data } = await routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
+	console.log(c.req.query());
+	const days = Number.parseInt(c.req.query("days") ?? "0", 10);
+
+	const statsEl = RuleStats({
+		data,
+		days,
+		swapOOB: true,
+	});
+
+	return c.html(html`${statsEl}`);
 });
 
 uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
@@ -216,12 +234,15 @@ uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
 		c.env,
 		c.var.tenantId
 	);
-	return c.html(
-		RulesAndStats({
-			data,
-			swapOOB: false,
-		})
-	);
+	const rulesEl = Rules({
+		data,
+		swapOOB: false,
+	});
+	const statsEl = RuleStats({
+		data,
+		swapOOB: false,
+	});
+	return c.html(html`${rulesEl} ${statsEl}`);
 });
 
 uiAdmin.post('/-_-/ui/partials.CreateRule', async (c) => {
@@ -242,20 +263,66 @@ uiAdmin.post('/-_-/ui/partials.CreateRule', async (c) => {
 		c.env,
 		c.var.tenantId
 	);
-	const rulesList = RulesAndStats({
+	const rulesEl = Rules({
+		data,
+		swapOOB: true,
+	});
+	const statsEl = RuleStats({
 		data,
 		swapOOB: true,
 	});
 	const createRuleForm = CreateRuleForm();
 
-	return c.html(html`${createRuleForm} ${rulesList}`);
+	return c.html(html`${createRuleForm} ${rulesEl} ${statsEl}`);
 });
 
-function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean }) {
+function Rules(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean }) {
 	const { data, swapOOB } = props;
 
 	if (!data.rules.length && !data.stats.length) {
 		return html`<p>You have no redirect rules yet (•_•)</p>`;
+	}
+
+	return html`
+		<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+			<h3>Existing rules</h3>
+			${
+				// TODO Improve :)
+				data.rules.map(
+					(rule) => html`
+						<article>
+							<header><a href="${rule.ruleUrl}" target="_blank">${rule.ruleUrl} ↝</a></header>
+							<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
+							<footer>
+								<button class="outline"
+									hx-post="/-_-/ui/partials.DeleteRule"
+									hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
+									hx-target="#redirection-rules-container"
+									hx-confirm="Are you sure you want to delete rule?"
+								>
+									Delete rule
+								</button>
+							</footer>
+						</article>
+						<hr />
+					`
+				)
+			}
+		</section>
+	`;
+}
+
+function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean, days?: number }) {
+	const { data, days, swapOOB } = props;
+
+	if (!data.rules.length && !data.stats.length) {
+		return html`<p>You have no redirect rules yet (•_•)</p>`;
+	}
+
+	if (days && days > 0) {
+		// We cutoff 1h extra to cover our bucketing of 1h slots.
+		const tsCutoff = Date.now() - (days * 25 * 60 * 60 * 1000);
+		data.stats = data.stats.filter((s) => s.tsHourMs > tsCutoff);
 	}
 
 	data.stats.sort((s1, s2) => {
@@ -281,69 +348,51 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 	// console.log("BOOM :: rules and stats", {data});
 
 	return html`
-		<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-			<h3>Existing rules</h3>
-			<div>
+		<section id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+			<hgroup>
+				<div>
+					<h3>Statistics</h3>
+					<div role="group">
+						<button class="${!days ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats">All time</button>
+						<button class="${days === 366 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=366">1y</button>
+						<button class="${days === 31 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=31">1m</button>
+						<button class="${days === 7 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=7">1w</button>
+					</div>
+				</div>
 				${
-					// TODO Improve :)
-					data.rules.map(
-						(rule) => html`
-							<article>
-								<header><a href="${rule.ruleUrl}" target="_blank">${rule.ruleUrl} ↝</a></header>
-								<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
-								<footer>
-									<button class="outline"
-										hx-post="/-_-/ui/partials.DeleteRule"
-										hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
-										hx-target="#redirection-rules-container"
-										hx-confirm="Are you sure you want to delete rule?"
-									>
-										Delete rule
-									</button>
-								</footer>
-							</article>
-							<hr />
-						`
-					)
+					data.stats.length === 0 ? html`<p>No stats have been aggregated yet.</p>` : null
 				}
-			</div>
-			<div id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-				<hgroup>
-					<h2>Statistics</h2>
-					${
-						data.stats.length === 0 ? html`<p>No stats have been aggregated yet.</p>` : null
+			</hgroup>
+			<table class="striped">
+				<thead>
+					<tr>
+						<th scope="col">Rule URL</th>
+						<th scope="col">Total count</th>
+					</tr>
+				</thead>
+				<tbody>
+					${totalCountsSorted.map(([ruleUrl, cnt]) => html`<tr><th scope="row">${ruleUrl}</th><td>${cnt}</td></tr>`)}
+				</tbody>
+			</table>
+
+			${
+				Object.keys(statsByRuleUrlObj).map(
+					(ruleUrl) => {
+						const randomId = nanoid();
+						return html`
+						<article>
+							<header><strong>${ruleUrl}</strong> • <em>(${totalAggs.get(ruleUrl)})</em></header>
+							<section>
+								<script id="plot-data-${randomId}" type="application/json">${raw(JSON.stringify(statsByRuleUrlObj[ruleUrl]))}</script>
+								<rf-plot-bar data-json-selector="#plot-data-${randomId}"></rf-plot-bar>
+							</section>
+							<!-- <footer></footer> -->
+						</article>
+					`;
 					}
-				</hgroup>
-				<table class="striped">
-					<thead>
-						<tr>
-							<th scope="col">Rule URL</th>
-							<th scope="col">Total count</th>
-						</tr>
-					</thead>
-					<tbody>
-						${totalCountsSorted.map(([ruleUrl, cnt]) => html`<tr><th scope="row">${ruleUrl}</th><td>${cnt}</td></tr>`)}
-					</tbody>
-				</table>
-
-				<script id="plot-data" type="application/json">${raw(JSON.stringify(statsByRuleUrlObj))}</script>
-
-				${
-					Object.keys(statsByRuleUrlObj).map(
-						(ruleUrl) => html`
-							<article>
-								<header><h4>${ruleUrl}</h4></header>
-								<section>
-									<rf-plot-bar data-json-selector="#plot-data" data-json-field="${ruleUrl}"></rf-plot-bar>
-								</section>
-								<!-- <footer></footer> -->
-							</article>
-						`
-					)
-				}
-			</div>
-		</section>
-	`;
+				)
+			}
+		</section>`;
 }
 
 function CreateRuleForm() {
@@ -410,7 +459,7 @@ function Dashboard(props: {}) {
 
 				${createRuleForm}
 				<hr />
-				<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load, every 10s">
+				<div id="redirection-rules-container" hx-get="/-_-/ui/partials.ListRules" hx-trigger="load">
 					<p>
 						Paste your Rediflare-Api-Key in the above input box, or append it in the URL hash (e.g.
 						<code>#rfApiKey=rf_key_TENANT1111_sometoken</code>) to interact with your redirection rules.

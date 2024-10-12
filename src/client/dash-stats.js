@@ -11,12 +11,12 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "" }) {
     const [data, setData] = useState();
 
     useEffect(() => {
-        if (!dataJsonSelector || !dataJsonField) {
+        if (!dataJsonSelector) {
             return;
         }
         const jsonStr = document.querySelector(dataJsonSelector).text;
         const dataJson = JSON.parse(jsonStr);
-        setData(dataJson[dataJsonField]);
+        setData(!!dataJsonField ? dataJson[dataJsonField] : dataJson);
     }, []);
 
     useEffect(() => {
@@ -41,6 +41,7 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "" }) {
             height: 200,
             y: yOptions,
             x: { label: "Date UTC (1h)", type: "utc" },
+            marginBottom: 40,
             marks: [
                 // Make the zero-line bold.
                 Plot.ruleY([0]),
