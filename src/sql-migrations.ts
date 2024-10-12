@@ -58,7 +58,6 @@ export class SchemaMigrations {
 			return result;
 		}
 
-		// TODO Should this be in a table itself, and increment its counter as part of the queries running in the migration???
 		this._lastMigrationMonotonicId = (await this._config.doStorage.get<number>('_rf_migrations_lastID')) ?? -1;
 
 		// Skip all the applied ones.
@@ -75,21 +74,24 @@ export class SchemaMigrations {
 
 		const doSql = this._config.doStorage.sql;
 		const migrationsToRun = this._migrations.slice(idx);
-		migrationsToRun.forEach((migration) => {
-			let query = migration.sql ?? sqlGen?.(migration.idMonotonicInc);
-			if (!query) {
-				throw new Error(`migration with neither 'sql' nor 'sqlGen' provided: ${migration.idMonotonicInc}`);
-			}
 
-			const cursor = doSql.exec(query);
-			let _ = cursor.toArray();
+		this._config.doStorage.transactionSync(() => {
+			migrationsToRun.forEach((migration) => {
+				let query = migration.sql ?? sqlGen?.(migration.idMonotonicInc);
+				if (!query) {
+					throw new Error(`migration with neither 'sql' nor 'sqlGen' provided: ${migration.idMonotonicInc}`);
+				}
 
-			result.rowsRead += cursor.rowsRead;
-			result.rowsWritten += cursor.rowsWritten;
+				const cursor = doSql.exec(query);
+				let _ = cursor.toArray();
 
-			this._lastMigrationMonotonicId = migration.idMonotonicInc;
-			// What happens if we fail just before this?
-			this._config.doStorage.put<number>('_rf_migrations_lastID', this._lastMigrationMonotonicId);
+				result.rowsRead += cursor.rowsRead;
+				result.rowsWritten += cursor.rowsWritten;
+
+				this._lastMigrationMonotonicId = migration.idMonotonicInc;
+
+				this._config.doStorage.put<number>('_rf_migrations_lastID', this._lastMigrationMonotonicId);
+			});
 		});
 
 		return result;
