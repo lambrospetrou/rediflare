@@ -318,62 +318,15 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 				</table>
 				<hr />
 
-				<section class="chart-container">
-					<canvas id="barChart"></canvas>
-				</section>
-				<section class="chart-container">
-					<canvas id="lineChart"></canvas>
-				</section>
-				<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-				<script type="text/javascript">
-					setTimeout(renderChart, 100);
-					function renderChart() {
-						// Bar Chart
-						new Chart(document.getElementById('barChart'), {
-							type: 'bar',
-							data: {
-								labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-								datasets: [{
-									label: 'Monthly Sales',
-									data: [12, 19, 3, 5, 2, 3],
-									backgroundColor: 'rgba(75, 192, 192, 0.6)',
-									borderColor: 'rgba(75, 192, 192, 1)',
-									borderWidth: 1
-								}]
-							},
-							options: {
-								responsive: true,
-								scales: {
-									y: {
-										beginAtZero: true
-									}
-								}
-							}
-						});
+				<div id="myplot"></div>
+				<script type="module">
 
-						// Line Chart
-						new Chart(document.getElementById('lineChart'), {
-							type: 'line',
-							data: {
-								labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-								datasets: [{
-									label: 'Monthly Visitors',
-									data: [65, 59, 80, 81, 56, 55],
-									fill: false,
-									borderColor: 'rgb(75, 192, 192)',
-									tension: 0.1
-								}]
-							},
-							options: {
-								responsive: true,
-								scales: {
-									y: {
-										beginAtZero: true
-									}
-								}
-							}
-						});
-					}
+				import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm";
+
+				const plot = Plot.rectY({length: 10000}, Plot.binX({y: "count"}, {x: Math.random})).plot();
+				const div = document.querySelector("#myplot");
+				div.append(plot);
+
 				</script>
 				<hr />
 				${
