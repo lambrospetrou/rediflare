@@ -90,12 +90,12 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
             }
         }
 
+        const width = Math.floor(containerRef.current?.parentElement?.closest("div")?.getBoundingClientRect().width ?? 640);
         const plot = Plot.plot({
             height: 200,
             // Default is 640. The plot will not exceed the parent container width so it's OK if the 
             // number specified here is bigger than available space. The difference is text legibility.
-            // TODO Get the parent width.
-            width: Math.floor(window.innerWidth),
+            width: width,
             y: yOptions,
             x: { ...xOptions, label: xOptions.label + ` (bar = ${xIntervalDescription})`, interval: xInterval },
             marginBottom: 40,
@@ -133,6 +133,6 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
         return () => plot.remove();
     }, [data]);
 
-    return <div ref={containerRef} />;
+    return <div class="relative" ref={containerRef} />;
 }
 register(RfPlotBar, "rf-plot-bar", ["data-json-selector", "data-json-field", "data-days"], { shadow: false });
