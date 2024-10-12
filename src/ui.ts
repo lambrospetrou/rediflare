@@ -269,6 +269,15 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, (totalAggs.get(s.ruleUrl) ?? 0) + s.totalVisits));
 	const totalCountsSorted = [...totalAggs.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
 
+	const statsByRuleUrl = new Map<string, Array<object>>();
+	data.stats.forEach((s) => {
+		if (!statsByRuleUrl.has(s.ruleUrl)) {
+			statsByRuleUrl.set(s.ruleUrl, []);
+		}
+		statsByRuleUrl.get(s.ruleUrl)!.push(s);
+	});
+	const statsByRuleUrlObj = Object.fromEntries(statsByRuleUrl.entries());
+
 	// console.log("BOOM :: rules and stats", {data});
 
 	return html`
@@ -316,20 +325,18 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 						${totalCountsSorted.map(([ruleUrl, cnt]) => html`<tr><th scope="row">${ruleUrl}</th><td>${cnt}</td></tr>`)}
 					</tbody>
 				</table>
-				<hr />
 
-				<script id="plot-data" type="application/json">${raw(JSON.stringify(data.stats))}</script>
-				<rf-plot-bar data-selector="#plot-data"></rf-plot-bar>
+				<script id="plot-data" type="application/json">${raw(JSON.stringify(statsByRuleUrlObj))}</script>
 
-				<hr />
 				${
-					// TODO Improve :)
-					data.stats.map(
-						(stat) => html`
+					Object.keys(statsByRuleUrlObj).map(
+						(ruleUrl) => html`
 							<article>
-								<header><h4>Hour bucket: ${new Date(stat.tsHourMs).toISOString()}</h4></header>
-								<pre><code>${raw(JSON.stringify(stat, null, 2))}</code></pre>
-								<footer></footer>
+								<header><h4>${ruleUrl}</h4></header>
+								<section>
+									<rf-plot-bar data-json-selector="#plot-data" data-json-field="${ruleUrl}"></rf-plot-bar>
+								</section>
+								<!-- <footer></footer> -->
 							</article>
 						`
 					)
