@@ -62,7 +62,7 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
                 xInterval = "7 days";
                 finalData = Array.from(
                     d3.group(data, d => {
-                        const weekMs = 7*24*60*60*1000;
+                        const weekMs = 7 * 24 * 60 * 60 * 1000;
                         return Math.floor(d.tsHourMs / (weekMs)) * (weekMs);
                     }),
                     ([key, entries]) => ({
@@ -75,7 +75,7 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
                 xInterval = "day";
                 finalData = Array.from(
                     d3.group(data, d => {
-                        const dayMs = 24*60*60*1000;
+                        const dayMs = 24 * 60 * 60 * 1000;
                         return Math.floor(d.tsHourMs / (dayMs)) * (dayMs);
                     }),
                     ([key, entries]) => ({
@@ -94,14 +94,14 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
             // TODO Get the parent width.
             width: Math.min(1600, Math.floor(window.innerWidth)),
             y: yOptions,
-            x: {...xOptions, interval: xInterval},
+            x: { ...xOptions, interval: xInterval },
             marginBottom: 40,
             marks: [
                 // Make the zero-line bold.
                 Plot.ruleY([0]),
-                Plot.rectY(finalData, { x: "tsHourMs", y: "totalVisits", r: 2, fill: "var(--pico-primary)", interval: xInterval}),
-                Plot.tip(finalData, Plot.pointerX({x: "tsHourMs", y: "totalVisits", fontSize: 16 })),
-                Plot.crosshair(finalData, {x: "tsHourMs", y: "totalVisits"}),
+                Plot.rectY(finalData, { x: "tsHourMs", y: "totalVisits", r: 2, fill: "var(--pico-primary)", interval: xInterval }),
+                Plot.tip(finalData, Plot.pointerX({ x: "tsHourMs", y: "totalVisits", fontSize: 16 })),
+                Plot.crosshair(finalData, { x: "tsHourMs", y: "totalVisits" }),
             ]
         });
 

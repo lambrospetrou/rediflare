@@ -208,7 +208,7 @@ uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 uiAdmin.get('/-_-/ui/partials.ListStats', async (c) => {
 	const { data } = await routeListUrlRedirects(c.req.raw, c.env, c.var.tenantId);
 	console.log(c.req.query());
-	const days = Number.parseInt(c.req.query("days") ?? "0", 10);
+	const days = Number.parseInt(c.req.query('days') ?? '0', 10);
 
 	const statsEl = RuleStats({
 		data,
@@ -297,7 +297,8 @@ function Rules(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boo
 							<header><a href="${rule.ruleUrl}" target="_blank">${rule.ruleUrl} ↝</a></header>
 							<pre><code>${raw(JSON.stringify(rule, null, 2))}</code></pre>
 							<footer>
-								<button class="outline"
+								<button
+									class="outline"
 									hx-post="/-_-/ui/partials.DeleteRule"
 									hx-vals=${raw(`'{"ruleUrl": "${encodeURIComponent(rule.ruleUrl)}"}'`)}
 									hx-target="#redirection-rules-container"
@@ -315,7 +316,7 @@ function Rules(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boo
 	`;
 }
 
-function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean, days?: number }) {
+function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean; days?: number }) {
 	const { data, days, swapOOB } = props;
 
 	if (!data.rules.length && !data.stats.length) {
@@ -324,7 +325,7 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 
 	if (days && days > 0) {
 		// We cutoff 1h extra to cover our bucketing of 1h slots.
-		const tsCutoff = Date.now() - (days * 25 * 60 * 60 * 1000);
+		const tsCutoff = Date.now() - days * 25 * 60 * 60 * 1000;
 		data.stats = data.stats.filter((s) => s.tsHourMs > tsCutoff);
 	}
 
@@ -337,7 +338,7 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 
 	const totalAggs = new Map<string, number>();
 	data.stats.forEach((s) => totalAggs.set(s.ruleUrl, (totalAggs.get(s.ruleUrl) ?? 0) + s.totalVisits));
-	const totalCountsSorted = [...totalAggs.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+	const totalCountsSorted = [...totalAggs.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
 	const statsByRuleUrl = new Map<string, Array<object>>();
 	data.stats.forEach((s) => {
@@ -348,52 +349,53 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 	});
 	const statsByRuleUrlObj = Object.fromEntries(statsByRuleUrl.entries());
 
-	return html`
-		<section id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
-			<hgroup>
-				<div>
-					<h3>Statistics</h3>
-					<div role="group">
-						<button class="${!days ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats">Raw</button>
-						<button class="${days === 366 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=366">1y</button>
-						<button class="${days === 31 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=31">1m</button>
-						<button class="${days === 7 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=7">1w</button>
-					</div>
+	return html` <section id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
+		<hgroup>
+			<div>
+				<h3>Statistics</h3>
+				<div role="group">
+					<button class="${!days ? 'primary' : 'outline'}" hx-get="/-_-/ui/partials.ListStats">Raw</button>
+					<button class="${days === 366 ? 'primary' : 'outline'}" hx-get="/-_-/ui/partials.ListStats?days=366">1y</button>
+					<button class="${days === 31 ? 'primary' : 'outline'}" hx-get="/-_-/ui/partials.ListStats?days=31">1m</button>
+					<button class="${days === 7 ? 'primary' : 'outline'}" hx-get="/-_-/ui/partials.ListStats?days=7">1w</button>
 				</div>
-				${
-					data.stats.length === 0 ? html`<p>No stats have been aggregated yet.</p>` : null
-				}
-			</hgroup>
-			<table class="striped">
-				<thead>
-					<tr>
-						<th scope="col">Rule URL</th>
-						<th scope="col">Total count</th>
-					</tr>
-				</thead>
-				<tbody>
-					${totalCountsSorted.map(([ruleUrl, cnt]) => html`<tr><th scope="row">${ruleUrl}</th><td>${cnt}</td></tr>`)}
-				</tbody>
-			</table>
+			</div>
+			${data.stats.length === 0 ? html`<p>No stats have been aggregated yet.</p>` : null}
+		</hgroup>
+		<table class="striped">
+			<thead>
+				<tr>
+					<th scope="col">Rule URL</th>
+					<th scope="col">Total count</th>
+				</tr>
+			</thead>
+			<tbody>
+				${totalCountsSorted.map(
+					([ruleUrl, cnt]) =>
+						html`<tr>
+							<th scope="row">${ruleUrl}</th>
+							<td>${cnt}</td>
+						</tr>`
+				)}
+			</tbody>
+		</table>
 
-			${
-				Object.keys(statsByRuleUrlObj).map(
-					(ruleUrl) => {
-						const randomId = nanoid();
-						return html`
-						<article>
-							<header><strong>${ruleUrl}</strong> • <em>(${totalAggs.get(ruleUrl)})</em></header>
-							<section>
-								<script id="plot-data-${randomId}" type="application/json">${raw(JSON.stringify(statsByRuleUrlObj[ruleUrl]))}</script>
-								<rf-plot-bar data-json-selector="#plot-data-${randomId}" data-days="${days}"></rf-plot-bar>
-							</section>
-							<!-- <footer></footer> -->
-						</article>
-					`;
-					}
-				)
-			}
-		</section>`;
+		${Object.keys(statsByRuleUrlObj).map((ruleUrl) => {
+			const randomId = nanoid();
+			return html`
+				<article>
+					<header><strong>${ruleUrl}</strong> • <em>(${totalAggs.get(ruleUrl)})</em></header>
+					<section>
+						<script id="plot-data-${randomId}" type="application/json">
+							${raw(JSON.stringify(statsByRuleUrlObj[ruleUrl]))}
+						</script>
+						<rf-plot-bar data-json-selector="#plot-data-${randomId}" data-days="${days}"></rf-plot-bar>
+					</section>
+					<!-- <footer></footer> -->
+				</article>
+			`;
+		})}
+	</section>`;
 }
 
 function CreateRuleForm() {
@@ -403,7 +405,8 @@ function CreateRuleForm() {
 				<h3>Create new redirection rule</h3>
 				<p>Edit the JSON in the box below to your needs, but keep all the properties.</p>
 			</hgroup>
-			<textarea id="new-rule-json" name="newRuleJson" rows="6">{
+			<textarea id="new-rule-json" name="newRuleJson" rows="6">
+{
 "ruleUrl": "http://127.0.0.1:8787/test-rule-11",
 "responseStatus": 302,
 "responseLocation": "https://skybear.net",
@@ -494,7 +497,7 @@ function Dashboard(props: {}) {
 }
 
 function Layout(props: { title: string; description: string; image: string; children?: any }) {
-	const image = props.image || "https://go.rediflare.com/ui/static/20240929T1559-B3S2MSGffh.png";
+	const image = props.image || 'https://go.rediflare.com/ui/static/20240929T1559-B3S2MSGffh.png';
 	return html`
 		<html>
 			<head>
@@ -507,7 +510,10 @@ function Layout(props: { title: string; description: string; image: string; chil
 				<meta property="og:title" content="${props.title}" />
 				<meta property="og:image" content="${image}" />
 
-				<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%23990000%22>↝</text></svg>">
+				<link
+					rel="icon"
+					href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%23990000%22>↝</text></svg>"
+				/>
 
 				<meta name="htmx-config" content='{"withCredentials":true,"globalViewTransitions": true,"selfRequestsOnly": false}' />
 
