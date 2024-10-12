@@ -318,16 +318,9 @@ function RulesAndStats(props: { data: ApiListRedirectRulesResponse['data']; swap
 				</table>
 				<hr />
 
-				<div id="myplot"></div>
-				<script type="module">
+				<script id="plot-data" type="application/json">${raw(JSON.stringify(data.stats))}</script>
+				<rf-plot-bar data-selector="#plot-data"></rf-plot-bar>
 
-				import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm";
-
-				const plot = Plot.rectY({length: 10000}, Plot.binX({y: "count"}, {x: Math.random})).plot();
-				const div = document.querySelector("#myplot");
-				div.append(plot);
-
-				</script>
 				<hr />
 				${
 					// TODO Improve :)
@@ -435,6 +428,7 @@ function Dashboard(props: {}) {
 					parseApiKeyFromHash();
 				})();
 			</script>
+			<script src="/-_-/ui/static/generated/dash-stats.js" defer></script>
 		</main>
 		<footer class="container">
 			${RediflareName()} is built by <a href="https://www.lambrospetrou.com" target="_blank">Lambros Petrou</a>. 🚀👌
@@ -481,7 +475,7 @@ function Layout(props: { title: string; description: string; image: string; chil
 				${props.children}
 
 				<script src="/-_-/ui/static/htmx.2.0.2.min.js" defer></script>
-				<script src="/-_-/ui/static/helpers.js" defer></script>
+				<script src="/-_-/ui/static/generated/app.js" defer></script>
 			</body>
 		</html>
 	`;

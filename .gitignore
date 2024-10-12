@@ -1,3 +1,6 @@
+esbuild-*.json
+public/ui/static/generated/
+
 # Logs
 
 logs
