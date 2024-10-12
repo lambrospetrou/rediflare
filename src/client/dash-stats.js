@@ -48,17 +48,19 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
 
         /** @type Plot.ScaleOptions */
         let xOptions = {
-            label: "Date UTC (1h)",
+            label: "Date UTC",
             type: "utc",
         };
 
         let finalData = data;
+        let xIntervalDescription = "1 hour";
         let xInterval = "hour";
         if (days > 0) {
             const tsCutoff = Date.now() - (days * 25 * 60 * 60 * 1000);
             xOptions.domain = [tsCutoff, Date.now()];
 
             if (days > 31) {
+                xIntervalDescription = "7 days";
                 xInterval = "7 days";
                 finalData = Array.from(
                     d3.group(data, d => {
@@ -72,6 +74,7 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
                     })
                 );
             } else if (days > 7) {
+                xIntervalDescription = "1 day";
                 xInterval = "day";
                 finalData = Array.from(
                     d3.group(data, d => {
@@ -92,16 +95,37 @@ function RfPlotBar({ dataJsonSelector = "", dataJsonField = "", dataDays = "0" }
             // Default is 640. The plot will not exceed the parent container width so it's OK if the 
             // number specified here is bigger than available space. The difference is text legibility.
             // TODO Get the parent width.
-            width: Math.min(1600, Math.floor(window.innerWidth)),
+            width: Math.floor(window.innerWidth),
             y: yOptions,
-            x: { ...xOptions, interval: xInterval },
+            x: { ...xOptions, label: xOptions.label + ` (bar = ${xIntervalDescription})`, interval: xInterval },
             marginBottom: 40,
             marks: [
                 // Make the zero-line bold.
                 Plot.ruleY([0]),
-                Plot.rectY(finalData, { x: "tsHourMs", y: "totalVisits", r: 2, fill: "var(--pico-primary)", interval: xInterval, tip: {fontSize: 16 } }),
-                // Plot.tip(finalData, Plot.pointerX({ x: "tsHourMs", y: "totalVisits", fontSize: 16 })),
-                Plot.crosshair(finalData, { x: "tsHourMs", y: "totalVisits" }),
+                Plot.rectY(finalData, {
+                    x: "tsHourMs", y: "totalVisits",
+                    r: 2, fill: "var(--pico-primary)",
+                    interval: xInterval,
+                    channels: {
+                        // We need to add this field as a channel, to be able to reference it in `tip.format`.
+                        tsHourMs: {
+                            value: "tsHourMs",
+                            label: "UTC" + ` (${xIntervalDescription})`,
+                        },
+                    },
+                    // We use the `tip` property here instead of a mark Plot.tip() to properly align it
+                    // in the middle of the interval rectangle bar! Otherwise, it's anchored at the timestamp (left)
+                    // which causes issues with side by side bars and how the "closest" data point is calculated.
+                    tip: {
+                        fontSize: 16, lineWidth: 20, format: {
+                            // Hide the defaults date label since it's cutoff (shows from-to).
+                            x: false,
+                            tsHourMs: function (d) {
+                                return d3.utcFormat("%Y-%m-%d %H:%M")(d);
+                            },
+                        }
+                    },
+                }),
             ]
         });
 
