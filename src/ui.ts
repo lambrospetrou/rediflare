@@ -199,6 +199,7 @@ uiAdmin.get('/-_-/ui/partials.ListRules', async (c) => {
 	});
 	const statsEl = RuleStats({
 		data,
+		days: 31,
 		swapOOB: false,
 	});
 	return c.html(html`${rulesEl} ${statsEl}`);
@@ -240,6 +241,7 @@ uiAdmin.post('/-_-/ui/partials.DeleteRule', async (c) => {
 	});
 	const statsEl = RuleStats({
 		data,
+		days: 31,
 		swapOOB: false,
 	});
 	return c.html(html`${rulesEl} ${statsEl}`);
@@ -269,6 +271,7 @@ uiAdmin.post('/-_-/ui/partials.CreateRule', async (c) => {
 	});
 	const statsEl = RuleStats({
 		data,
+		days: 31,
 		swapOOB: true,
 	});
 	const createRuleForm = CreateRuleForm();
@@ -345,15 +348,13 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 	});
 	const statsByRuleUrlObj = Object.fromEntries(statsByRuleUrl.entries());
 
-	// console.log("BOOM :: rules and stats", {data});
-
 	return html`
 		<section id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 			<hgroup>
 				<div>
 					<h3>Statistics</h3>
 					<div role="group">
-						<button class="${!days ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats">All time</button>
+						<button class="${!days ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats">Raw</button>
 						<button class="${days === 366 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=366">1y</button>
 						<button class="${days === 31 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=31">1m</button>
 						<button class="${days === 7 ? "primary" : "outline"}" hx-get="/-_-/ui/partials.ListStats?days=7">1w</button>
@@ -384,7 +385,7 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 							<header><strong>${ruleUrl}</strong> • <em>(${totalAggs.get(ruleUrl)})</em></header>
 							<section>
 								<script id="plot-data-${randomId}" type="application/json">${raw(JSON.stringify(statsByRuleUrlObj[ruleUrl]))}</script>
-								<rf-plot-bar data-json-selector="#plot-data-${randomId}"></rf-plot-bar>
+								<rf-plot-bar data-json-selector="#plot-data-${randomId}" data-days="${days}"></rf-plot-bar>
 							</section>
 							<!-- <footer></footer> -->
 						</article>
