@@ -320,7 +320,7 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 	const { data, days, swapOOB } = props;
 
 	if (!data.rules.length && !data.stats.length) {
-		return html`<p>You have no redirect rules yet (•_•)</p>`;
+		return html`<p>You have no statistics yet (•_•)</p>`;
 	}
 
 	if (days && days > 0) {
