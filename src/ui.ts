@@ -282,13 +282,12 @@ uiAdmin.post('/-_-/ui/partials.CreateRule', async (c) => {
 function Rules(props: { data: ApiListRedirectRulesResponse['data']; swapOOB: boolean }) {
 	const { data, swapOOB } = props;
 
-	if (!data.rules.length && !data.stats.length) {
-		return html`<p>You have no redirect rules yet (•_•)</p>`;
-	}
-
 	return html`
 		<section id="rules-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 			<h3>Existing rules</h3>
+			${
+				data.rules.length === 0 ? html`<p>You have no redirect rules yet (•_•)</p>` : null
+			}
 			${
 				// TODO Improve :)
 				data.rules.map(
@@ -347,7 +346,6 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 		}
 		statsByRuleUrl.get(s.ruleUrl)!.push(s);
 	});
-	const statsByRuleUrlObj = Object.fromEntries(statsByRuleUrl.entries());
 
 	return html` <section id="stats-list" hx-swap-oob="${swapOOB ? 'true' : undefined}">
 		<hgroup>
@@ -380,14 +378,14 @@ function RuleStats(props: { data: ApiListRedirectRulesResponse['data']; swapOOB:
 			</tbody>
 		</table>
 
-		${Object.keys(statsByRuleUrlObj).map((ruleUrl) => {
+		${totalCountsSorted.map(([ruleUrl, totalCount]) => {
 			const randomId = nanoid();
 			return html`
 				<article>
-					<header><strong>${ruleUrl}</strong> • <em>(${totalAggs.get(ruleUrl)})</em></header>
+					<header><strong>${ruleUrl}</strong> • <em>(${totalCount})</em></header>
 					<section>
 						<script id="plot-data-${randomId}" type="application/json">
-							${raw(JSON.stringify(statsByRuleUrlObj[ruleUrl]))}
+							${raw(JSON.stringify(statsByRuleUrl.get(ruleUrl)))}
 						</script>
 						<rf-plot-bar data-json-selector="#plot-data-${randomId}" data-days="${days}"></rf-plot-bar>
 					</section>
